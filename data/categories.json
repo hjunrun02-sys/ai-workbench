@@ -1,0 +1,31 @@
+{
+  "automations": {
+    "automation-1785730322629": "竞品",
+    "automation-1785730322766": "电商",
+    "automation-1785730322851": "自媒体",
+    "automation-1785730322941": "运营",
+    "automation-1785730323029": "运营",
+    "automation-1785730323117": "电商"
+  },
+  "memory": {
+    "给 Miki 做 skill / 方法论时的两条硬性修正规则（务必一直遵守）": "运营",
+    "自检清单（交付 skill 前必过）": "是否",
+    "回答前先搜成熟方案（全局默认习惯）": "方案",
+    "任务交付必须讲清「分析过程 + 完成思路 + 具体步骤」（长期硬性要求）": "运营",
+    "协作角色定位：先分析可行性，再谈解决，禁止「幻觉解决」": "可行",
+    "代码开发必须配套「项目结构图」+「活动图」（长期硬性要求）": "运营",
+    "深度思考/推理过程全程用中文（长期硬性要求）": "AI技术"
+  },
+  "skills": {
+    "C:\\Users\\q2560\\.workbuddy\\skills\\doc-to-video\\SKILL.md": "video",
+    "C:\\Users\\q2560\\.workbuddy\\skills\\feishu-bitable-sync\\SKILL.md": "sync",
+    "C:\\Users\\q2560\\.workbuddy\\skills\\in-depth-content-method\\SKILL.md": "运营",
+    "C:\\Users\\q2560\\.workbuddy\\skills\\learning-path-builder\\SKILL.md": "path",
+    "C:\\Users\\q2560\\.workbuddy\\skills\\resume-optimizer\\SKILL.md": "resume",
+    "C:\\Users\\q2560\\.workbuddy\\skills\\skill-to-git\\SKILL.md": "运营"
+  },
+  "highlights": {
+    "HL-20260101-0900-001": "确立",
+    "HL-20260103-1100-003": "非散"
+  }
+}

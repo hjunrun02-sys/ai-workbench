@@ -700,14 +700,54 @@ def gather_git_repos():
     return repos
 
 
+def derive_project_name(repo, remotes):
+    """项目名：优先从远程 URL 取 owner/repo（去 .git），否则取目录 basename。"""
+    for rm in (remotes or []):
+        url = rm.get("url", "")
+        m = re.search(r"[:/]([^/]+)/([^/]+?)(?:\.git)?$", url)
+        if m:
+            return f"{m.group(1)}/{m.group(2)}"
+    return os.path.basename(repo.rstrip(os.sep))
+
+
 def describe_git(repo):
     try:
         branch = run_git(["git", "-C", repo, "branch", "--show-current"]).get("out", "").strip()
         st = run_git(["git", "-C", repo, "status", "--porcelain"])
         changes = len([l for l in st.get("out", "").splitlines() if l.strip()])
         remotes = parse_remotes(run_git(["git", "-C", repo, "remote", "-v"]).get("out", ""))
-        return {"id": repo, "路径": repo, "分支": branch or "(分离头指针)",
-                "状态": "有改动" if changes else "干净", "改动数": changes, "远程": remotes}
+        # 本地分支列表（标记当前）
+        bl = run_git(["git", "-C", repo, "branch", "--format=%(refname:short)%(HEAD)"])
+        branches = []
+        for ln in bl.get("out", "").splitlines():
+            ln = ln.strip()
+            if not ln:
+                continue
+            cur = ln.endswith("*")
+            nm = ln[:-1] if cur else ln
+            branches.append({"name": nm, "current": cur})
+        # 远程跟踪分支（用于展示，不可直接切换）
+        rb = run_git(["git", "-C", repo, "branch", "-r", "--format=%(refname:short)"])
+        remote_branches = [l.strip() for l in rb.get("out", "").splitlines() if l.strip()
+                           and "HEAD" not in l]
+        # 最近提交（短哈希|说明|作者|相对时间）
+        cl = run_git(["git", "-C", repo, "log", "-5", "--pretty=format:%h|%s|%an|%ar"])
+        commits = []
+        for ln in cl.get("out", "").splitlines():
+            ln = ln.strip()
+            if not ln:
+                continue
+            parts = ln.split("|", 3)
+            if len(parts) < 4:
+                continue
+            commits.append({"hash": parts[0], "message": parts[1],
+                            "author": parts[2], "date": parts[3]})
+        proj = derive_project_name(repo, remotes)
+        return {"id": repo, "路径": repo, "项目名": proj,
+                "分支": branch or "(分离头指针)",
+                "状态": "有改动" if changes else "干净", "改动数": changes,
+                "远程": remotes, "分支列表": branches,
+                "远程分支": remote_branches, "提交": commits}
     except Exception:
         return None
 
@@ -1432,6 +1472,23 @@ def git_action(body):
         res = run_git(["git"] + inject + ["-C", path, "pull"])
     elif action == "checkout":
         res = run_git(["git", "-C", path, "checkout", body.get("branch", "")])
+    elif action == "create_branch":
+        name = (body.get("branch") or "").strip()
+        if not name:
+            raise ValueError("分支名不能为空")
+        base = (body.get("base") or "").strip()
+        # 仅创建、不切换 HEAD（留在当前分支，由用户点「切换」决定）
+        if base:
+            res = run_git(["git", "-C", path, "branch", name, base])
+        else:
+            res = run_git(["git", "-C", path, "branch", name])
+    elif action == "delete_branch":
+        name = (body.get("branch") or "").strip()
+        if not name:
+            raise ValueError("分支名不能为空")
+        if run_git(["git", "-C", path, "branch", "--show-current"]).get("out", "").strip() == name:
+            raise ValueError("不能删除当前所在分支")
+        res = run_git(["git", "-C", path, "branch", "-d", name])
     elif action == "clone":
         url = body.get("url", "")
         dest = os.path.expanduser(body.get("dest", ""))

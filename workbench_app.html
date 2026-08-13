@@ -110,6 +110,25 @@ table.bitable{width:100%;border-collapse:collapse;font-size:13px}
 .repocard .remotes{margin:6px 0 10px;font-size:12px;color:var(--muted)}
 .repocard .remotes div{word-break:break-all;padding:2px 0}
 .repocard .rops{display:flex;gap:8px;flex-wrap:wrap}
+.repocard .rpname{font-weight:600;font-size:15px;word-break:break-all;line-height:1.3}
+.repocard .rpath{color:var(--muted);font-size:11px;word-break:break-all;margin-top:2px}
+.repocard .sec{margin-top:12px;border-top:1px dashed var(--border);padding-top:10px}
+.repocard .sectitle{font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.repocard .sectitle .cnt{color:var(--muted);font-weight:400}
+.repocard .brow{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px}
+.repocard .bname{font-family:ui-monospace,Menlo,Consolas,monospace;flex:1;word-break:break-all}
+.repocard .bname.cur{color:var(--accent);font-weight:600}
+.repocard .cur-tag{font-size:10px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:6px}
+.repocard .btn.xs{font-size:11px;padding:3px 8px}
+.repocard .newbranch{display:flex;gap:6px;margin-top:8px}
+.repocard .newbranch input{flex:1;padding:5px 8px;border:1px solid var(--border2);border-radius:7px;font-size:12px;outline:none;font-family:inherit}
+.repocard .newbranch input:focus{border-color:var(--accent)}
+.repocard .commit{display:flex;gap:8px;padding:5px 0;font-size:12px;border-bottom:1px solid var(--border)}
+.repocard .commit:last-child{border-bottom:none}
+.repocard .chash{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--accent);white-space:nowrap;font-size:11px;padding-top:1px}
+.repocard .cmsg{flex:1;word-break:break-all;line-height:1.4}
+.repocard .cmeta{color:var(--muted);font-size:11px;white-space:nowrap}
+.repocard .rbrow{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--muted);padding:2px 0;word-break:break-all}
 .code-pre{background:#0f1115;color:#e6e6e6;padding:14px;border-radius:10px;max-height:60vh;overflow:auto;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 /* ===== 浮层 / 弹窗 ===== */
@@ -731,22 +750,81 @@ function renderGit(host){
   const grid=el('div','gitgrid');
   items.forEach(r=>{
     const card=el('div','repocard');
-    card.appendChild(el('div','rp',r['路径']));
+    // 项目名（标题）+ 路径（副标题）
+    card.appendChild(el('div','rpname',r['项目名']||r['路径']));
+    card.appendChild(el('div','rpath',r['路径']));
     const meta=el('div','rmeta');
     meta.appendChild(el('span','badge '+badgeClass(r['状态']),r['状态']));
-    meta.appendChild(el('span','rbranch','分支：'+(r['分支']||'-')));
+    meta.appendChild(el('span','rbranch','当前分支：'+(r['分支']||'-')));
     if(r['改动数']>0) meta.appendChild(el('span','rbranch','改动 '+r['改动数']+' 处'));
     card.appendChild(meta);
+
+    // 分支管理
+    const bsec=el('div','sec');
+    const btitle=el('div','sectitle','分支管理');
+    btitle.appendChild(el('span','cnt',(r['分支列表']?r['分支列表'].length:0)+' 个本地分支'));
+    bsec.appendChild(btitle);
+    (r['分支列表']||[]).forEach(b=>{
+      const row=el('div','brow');
+      const nm=el('div','bname'+(b.current?' cur':''),b.name);
+      row.appendChild(nm);
+      if(b.current){ row.appendChild(el('span','cur-tag','当前')); }
+      else {
+        const sw=el('button','btn xs','切换'); sw.onclick=()=>gitAct('checkout',r['路径'],b.name);
+        row.appendChild(sw);
+        const del=el('button','btn xs danger','删除'); del.onclick=()=>{
+          if(confirm('确认删除本地分支「'+b.name+'」？')) gitAct('delete_branch',r['路径'],b.name);
+        };
+        row.appendChild(del);
+      }
+      bsec.appendChild(row);
+    });
+    // 远程跟踪分支（只读展示）
+    (r['远程分支']||[]).forEach(rb=>{
+      const row=el('div','brow');
+      row.appendChild(el('div','bname',rb));
+      row.appendChild(el('span','cnt','远程'));
+      bsec.appendChild(row);
+    });
+    // 新建分支
+    const nb=el('div','newbranch');
+    const inp=el('input'); inp.placeholder='新建分支名（默认基于当前分支）';
+    const nbb=el('button','btn xs primary','新建');
+    nbb.onclick=()=>{ const v=inp.value.trim(); if(v) gitAct('create_branch',r['路径'],v); };
+    nb.appendChild(inp); nb.appendChild(nbb);
+    bsec.appendChild(nb);
+    card.appendChild(bsec);
+
+    // 提交信息
+    const csec=el('div','sec');
+    const ctitle=el('div','sectitle','提交信息');
+    ctitle.appendChild(el('span','cnt','最近 '+(r['提交']?r['提交'].length:0)+' 条'));
+    csec.appendChild(ctitle);
+    if(r['提交']&&r['提交'].length){
+      r['提交'].forEach(c=>{
+        const row=el('div','commit');
+        row.appendChild(el('div','chash',c.hash));
+        const msg=el('div','cmsg',c.message);
+        const meta2=el('div','cmeta',(c.author||'')+' · '+(c.date||''));
+        msg.appendChild(meta2);
+        row.appendChild(msg);
+        csec.appendChild(row);
+      });
+    } else csec.appendChild(el('div','cmeta','（暂无提交记录）'));
+    card.appendChild(csec);
+
+    // 远程
     const rem=el('div','remotes');
     if(r['远程']&&r['远程'].length){
       r['远程'].forEach(rm=>rem.appendChild(el('div',null,rm['name']+' → '+rm['url']+' ('+rm['type']+')')));
     } else rem.appendChild(el('div',null,'（无远程）'));
     card.appendChild(rem);
+
+    // 操作
     const ops=el('div','rops');
     const mk=(label,fn)=>{const b=el('button','btn sm',label); b.onclick=fn; return b;};
     ops.appendChild(mk('fetch',()=>gitAct('fetch',r['路径'])));
     ops.appendChild(mk('pull',()=>gitAct('pull',r['路径'])));
-    ops.appendChild(mk('checkout',()=>{const b=prompt('切换到分支名：',r['分支']); if(b)gitAct('checkout',r['路径'],b);}));
     ops.appendChild(mk('推送',()=>gitAct('push',r['路径'])));
     card.appendChild(ops);
     grid.appendChild(card);
