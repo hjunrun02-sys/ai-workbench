@@ -282,7 +282,19 @@ Miki 处于自由职业起步期，三大方向为自媒体（纯图文 / AI 生
 
 ---
 
-## 11. 附录
+## 11. 开源发布（2026-08-13）
+
+- **定位落地**：按 §9.2 决策，项目以 **local-first 开源工具** 形态发布到 GitHub（公开仓库），人人可 `git clone` + `python server.py` 本地运行，无需账号、无需联网。
+- **与运行时解耦（关键重构）**：发布版 `server.py` 已重写为**完全自包含**（纯 Python 标准库，零依赖）：
+  - 不再依赖 WorkBuddy 运行时的 `.workbuddy/` 私有目录与全局 `workbuddy.db`；
+  - 数据改存本地 `data/` 目录（可用环境变量 `AI_WORKBENCH_DATA` 覆盖）；
+  - 定时任务库改为本地 SQLite `data/automations.db`，首次启动自动建表并写入示例数据；
+  - 移除飞书 `sync.py` 依赖与硬编码 token / 绝对路径。
+- **隐私保障**：仓库 `.gitignore` 排除 `.workbuddy/`、本地数据库（`data/*.db`）与 `*.bak`；私人数据（记忆、自动化库、飞书配置）绝不入库。
+- **交付物**：`server.py`、`workbench_app.html`、`data/`（示例数据）、`README.md`、`LICENSE`（MIT）、`requirements.txt`、`.gitignore`。
+- **状态**：本地 git 仓库已 `init` 并提交初始版本（commit `be2cb0a`）；GitHub 公开仓库的创建与推送，待用户提供 GitHub Personal Access Token（repo 权限）后执行。
+
+## 12. 附录
 
 ### 术语表
 - **MVP**：最小可行产品（Minimum Viable Product）。
