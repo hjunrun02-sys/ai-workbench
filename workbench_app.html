@@ -181,6 +181,7 @@ const SECTIONS = [
   {key:"highlights",  label:"每日亮点"},
   {key:"conversation_memory", label:"对话记忆"},
   {key:"git_repos",   label:"Git 仓库"},
+  {key:"processes",   label:"进程"},
 ];
 const CATEGORIES = ["自媒体","电商","AI技术","运营","其他"];
 const COLS = {
@@ -278,6 +279,7 @@ function buildToolbar(){
   }[activeKey];
   if(addBtn){ const b=el('button','btn primary',addBtn.label); b.onclick=addBtn.fn; tb.appendChild(b); }
   const tok=el('button','btn ghost','平台令牌'); tok.onclick=openTokens; tb.appendChild(tok);
+  if(activeKey==='processes'){ const ref=el('button','btn ghost','刷新进程'); ref.onclick=loadProcesses; tb.appendChild(ref); }
   const bak=el('button','btn ghost','备份管理');
   bak.onclick=openBackups; tb.appendChild(bak);
   const close=el('button','btn ghost','关闭工作台');
@@ -316,12 +318,14 @@ function emptMsg(){
     highlights:'（暂无亮点）点击右上角「+ 新增亮点」添加',
     conversation_memory:'（暂无对话记忆）点击右上角「+ 新增对话记忆」记录对话洞察',
     git_repos:'（未扫描到 Git 仓库）可在 data/git_roots.txt 配置仓库根目录',
+    processes:'（未扫描到进程）点击工具栏「刷新进程」重新读取本机进程',
   };
   return g[activeKey]||'（暂无内容）';
 }
 function render(){
   const host=document.getElementById('tableHost'); host.innerHTML='';
   if(activeKey==='git_repos'){ renderGit(host); return; }
+  if(activeKey==='processes'){ renderProcesses(host); return; }
   const items=filtered();
   if(!items.length){host.appendChild(el('div','empty',emptMsg()));return;}
   const cols=COLS[activeKey];
@@ -556,6 +560,46 @@ function toggleFreq(){
   document.getElementById('aWdWrap').style.display=(t==='每周')?'':'none';
   document.getElementById('aMdWrap').style.display=(t==='每月')?'':'none';
   document.getElementById('aOnceWrap').style.display=(t==='一次性')?'':'none';
+}
+function renderProcesses(host){
+  if(!DATA.processes){ host.appendChild(el('div','empty','正在加载进程列表…')); loadProcesses(); return; }
+  let items=DATA.processes;
+  if(query){ const q=query.toLowerCase(); items=items.filter(it=>JSON.stringify(it).toLowerCase().includes(q)); }
+  if(!items.length){ host.appendChild(el('div','empty', query?'没有匹配的进程':'（未扫描到进程）')); return; }
+  const table=el('table','bitable');
+  const thead=el('thead'); const trh=el('tr');
+  ['PID','名称','内存','操作'].forEach(h=>trh.appendChild(el('th',null,h)));
+  thead.appendChild(trh); table.appendChild(thead);
+  const tb=el('tbody');
+  items.forEach(it=>{
+    const tr=el('tr');
+    tr.appendChild(el('td',null,String(it.pid)));
+    tr.appendChild(el('td',null,it.name||''));
+    tr.appendChild(el('td',null,it.mem_human||it.mem||''));
+    const tdOp=el('td','opcell');
+    if(it.protected){
+      const b=el('button','btn sm','受保护'); b.disabled=true; b.title=it.reason||'系统/自身关键进程，不可结束'; tdOp.appendChild(b);
+    } else {
+      const b=el('button','btn sm danger','结束'); b.onclick=()=>killProc(it.pid, it.name); tdOp.appendChild(b);
+    }
+    tr.appendChild(tdOp);
+    tb.appendChild(tr);
+  });
+  table.appendChild(tb); host.appendChild(table);
+}
+async function loadProcesses(){
+  try{
+    const r=await fetch('/api/processes'); const j=await r.json();
+    DATA.processes=j.processes||[]; COUNTS.processes=DATA.processes.length; buildTabs();
+    if(activeKey==='processes') render();
+  }catch(e){ toast('加载进程失败',true); }
+}
+async function killProc(pid,name){
+  if(!confirm('确定结束进程 '+name+' (PID '+pid+')？\n注意：结束进程可能导致对应程序异常退出。')) return;
+  const r=await fetch('/api/kill_process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pid})});
+  const j=await r.json();
+  if(!j.ok){ toast('结束失败：'+(j.err||j.error||''),true); }
+  else { toast('已结束 '+name+' (PID '+pid+')'); await loadProcesses(); }
 }
 function renderGit(host){
   const items=filtered();

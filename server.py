@@ -9,6 +9,7 @@ AI 工作台 —— 本地可编辑服务（飞书表格风格，纯标准库，
   127.0.0.1（不暴露到外网），负责：
     - GET  /                  返回飞书表格风格前端 workbench_app.html
     - GET  /api/data          返回 6 类数据（定时任务/记忆/Skill/每日亮点/对话记忆）+ Git 仓库 + 计数 + 可筛选维度
+    - GET  /api/processes     列出本机运行进程（名称/PID/用户/CPU/内存/状态，受保护进程标记 protected）
     - POST /api/update        修改某条记录单字段
     - POST /api/update_multi  一次修改多个字段（含定时任务多字段编辑）
     - POST /api/update_category  修改某条记录的分类
@@ -23,6 +24,7 @@ AI 工作台 —— 本地可编辑服务（飞书表格风格，纯标准库，
     - POST /api/tokens        保存/删除平台令牌（写入本地 .git/config，不进仓库）
     - GET  /api/backups       列出所有 .bak 备份
     - POST /api/restore       一键还原某个 .bak
+    - POST /api/kill_process  结束指定 PID 的进程（服务端二次复核受保护进程，禁止误杀系统/自身）
     - POST /api/shutdown      关闭本地服务
 
 数据来源（用户选择「直接读写真实 WorkBuddy」，故核心资产直连活数据）：
@@ -47,6 +49,8 @@ import datetime
 import webbrowser
 import socket
 import subprocess
+import csv
+import io
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.parse
 
@@ -530,6 +534,146 @@ def compute_filters(data):
                                 {"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES}],
         "git_repos": [{"field": "状态", "label": "状态", "values": ["有改动", "干净"]}],
     }
+
+
+# ---------------- 进程管理 ----------------
+# 受保护进程（不在工作台内提供「结束」按钮，避免误杀系统/自身导致故障）
+PROTECTED_NAMES = {
+    "system", "system idle process", "csrss.exe", "wininit.exe", "services.exe",
+    "lsass.exe", "smss.exe", "winlogon.exe", "explorer.exe", "dwm.exe",
+    "fontdrvhost.exe", "audiodg.exe", "registry", "memory compression",
+    "searchui.exe", "shellexperiencehost.exe", "runtimebroker.exe",
+}
+PROTECTED_PIDS = set()
+
+
+def _protect_self():
+    """把工作台自身进程及其父进程标记为受保护，禁止在工作台里结束自己。"""
+    PROTECTED_PIDS.add(os.getpid())
+    try:
+        ppid = os.getppid()
+        if ppid:
+            PROTECTED_PIDS.add(ppid)
+    except Exception:
+        pass
+
+
+def _parse_mem_kb(s):
+    s = (s or "").strip().replace("K", "").replace("M", "").replace(",", "").replace(" ", "")
+    try:
+        return int(s)
+    except Exception:
+        return 0
+
+
+def _human_mem(kb):
+    if not kb:
+        return "0"
+    if kb >= 1024 * 1024:
+        return f"{kb / 1024 / 1024:.1f} GB"
+    if kb >= 1024:
+        return f"{kb / 1024:.0f} MB"
+    return f"{kb} KB"
+
+
+def _split_csv(line):
+    try:
+        return next(csv.reader(io.StringIO(line)))
+    except Exception:
+        return [line]
+
+
+def gather_processes():
+    """跨平台列出进程（零依赖，调用系统命令）。返回列表，含 protected 标记。"""
+    rows = []
+    is_win = (os.name == "nt")
+    try:
+        if is_win:
+            out = subprocess.run(
+                ["tasklist", "/fo", "csv", "/nh"],
+                capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=25
+            ).stdout or ""
+            for ln in out.splitlines():
+                ln = ln.strip()
+                if not ln:
+                    continue
+                p = _split_csv(ln)
+                # 列序：Image Name,PID,Session Name,Session Number,Mem Usage
+                if len(p) < 5:
+                    continue
+                name, pid, mem = p[0], p[1], p[4]
+                rows.append(_mk_proc(pid, name, "", "", mem, ""))
+        else:
+            out = subprocess.run(
+                ["ps", "-eo", "pid,user,%cpu,%mem,comm"],
+                capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=25
+            ).stdout or ""
+            for ln in out.splitlines()[1:]:
+                ln = ln.strip()
+                if not ln:
+                    continue
+                parts = ln.split(None, 4)
+                if len(parts) < 5:
+                    continue
+                pid, user, cpu, mem, name = parts[0], parts[1], parts[2], parts[3], parts[4]
+                rows.append(_mk_proc(pid, name, user, cpu + "%", mem + "%", "运行"))
+    except Exception:
+        return rows
+    return rows
+
+
+def _mk_proc(pid, name, user, cpu, mem, status):
+    try:
+        pid_i = int(pid)
+    except Exception:
+        pid_i = -1
+    nm = (name or "").lower().strip()
+    protected = False
+    reason = ""
+    if pid_i in PROTECTED_PIDS:
+        protected = True
+        reason = "工作台自身进程"
+    elif nm in PROTECTED_NAMES:
+        protected = True
+        reason = "系统关键进程"
+    mem_raw = (mem or "").strip()
+    if mem_raw.endswith("%"):
+        mem_human = mem_raw          # POSIX 的 ps 给的是百分比
+    else:
+        mem_human = _human_mem(_parse_mem_kb(mem_raw))
+    return {
+        "pid": pid_i, "name": name, "user": user, "cpu": cpu,
+        "mem": mem, "mem_human": mem_human,
+        "status": status, "protected": protected, "reason": reason,
+    }
+
+
+def kill_process(pid):
+    """结束指定进程。服务端二次复核：受保护进程（系统关键/自身）一律拒绝。"""
+    try:
+        pid = int(pid)
+    except Exception:
+        return {"ok": False, "err": "pid 无效"}
+    if pid in PROTECTED_PIDS:
+        return {"ok": False, "err": "不能结束工作台自身进程"}
+    # 复核受保护名单（防止前端绕过）
+    for p in gather_processes():
+        if p["pid"] == pid:
+            if p["protected"]:
+                return {"ok": False, "err": f"受保护进程（{p.get('reason', '')}），不能结束"}
+            break
+    is_win = (os.name == "nt")
+    try:
+        if is_win:
+            r = subprocess.run(["taskkill", "/PID", str(pid), "/F"],
+                               capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=15)
+        else:
+            r = subprocess.run(["kill", "-9", str(pid)],
+                               capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=15)
+        ok = r.returncode == 0
+        return {"ok": ok, "out": (r.stdout or "").strip(), "err": (r.stderr or "").strip()}
+    except Exception as e:
+        return {"ok": False, "err": str(e)}
 
 
 # ---------------- 写回（真实改写本地文件 / 数据库） ----------------
@@ -1039,6 +1183,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"ok": True, "backups": list_backups()})
         elif parsed.path == "/api/tokens":
             self._send(200, {"ok": True, "tokens": git_token_summary()})
+        elif parsed.path == "/api/processes":
+            self._send(200, {"ok": True, "processes": gather_processes()})
         else:
             self._send(404, {"error": "not found"})
 
@@ -1127,6 +1273,9 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     write_git_token(plat, body.get("username", ""), body.get("token", ""))
                     self._send(200, {"ok": True})
+            elif self.path == "/api/kill_process":
+                res = kill_process(body.get("pid"))
+                self._send(200, res)
             elif self.path == "/api/shutdown":
                 self._send(200, {"ok": True})
                 os._exit(0)
@@ -1151,6 +1300,7 @@ def find_free_port(start, host="127.0.0.1", max_tries=50):
 
 
 def main():
+    _protect_self()  # 标记自身进程受保护，禁止在工作台内被结束
     init_db()  # 首次运行自动建库 + 写入示例数据
     port = find_free_port(PORT)
     if port is None:
