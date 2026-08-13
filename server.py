@@ -754,12 +754,39 @@ def compute_filters(data):
 
 
 # ---------------- 进程管理 ----------------
-# 受保护进程（不在工作台内提供「结束」按钮，避免误杀系统/自身导致故障）
+# 受保护进程（不在工作台内提供「结束」按钮，避免误杀系统/自身导致故障；
+# 同时这些进程不会出现在「进程」列表里——进程管理只管用户自己的本地端口项目）
 PROTECTED_NAMES = {
+    # 系统关键/服务进程（不是用户的「项目」）
     "system", "system idle process", "csrss.exe", "wininit.exe", "services.exe",
     "lsass.exe", "smss.exe", "winlogon.exe", "explorer.exe", "dwm.exe",
     "fontdrvhost.exe", "audiodg.exe", "registry", "memory compression",
     "searchui.exe", "shellexperiencehost.exe", "runtimebroker.exe",
+    "svchost.exe", "spoolsv.exe", "dllhost.exe", "conhost.exe", "dashost.exe",
+    "wmiprvse.exe", "msdtc.exe", "trustedinstaller.exe", "securityhealthservice.exe",
+    "sihost.exe", "ctfmon.exe", "taskhostw.exe",
+    # 工作台所在平台自身（避免从工作台里关掉自己的 IDE/运行环境）
+    "workbuddy.exe",
+}
+# 非「项目」的常见 GUI / 生产力应用（同样不列入进程管理，避免误杀/噪音）
+NON_PROJECT_NAMES = {
+    # 浏览器
+    "chrome.exe", "msedge.exe", "edge.exe", "quark.exe", "firefox.exe", "360se.exe",
+    "sougouexplorer.exe", "maxthon.exe", "ucbrowser.exe", "liebao.exe", "brave.exe", "opera.exe",
+    # 输入法 / 搜索助手
+    "sogousmartassistant.exe", "sogouinput.exe", "sogouexplorer.exe",
+    # 编辑器 / IDE
+    "code.exe", "notepad++.exe", "sublime_text.exe", "cursor.exe",
+    # IM / 协作
+    "wechat.exe", "qq.exe", "tim.exe", "wxwork.exe", "dingtalk.exe", "feishu.exe", "lark.exe",
+    # AI 桌面应用
+    "doubao.exe", "yuanbao.exe",
+    # 代理 / VPN
+    "clash-verge.exe", "clash.exe", "verge-mihomo.exe", "v2ray.exe", "v2rayn.exe",
+    # 各类更新器 / 助手
+    "lghub_updater.exe", "flashhelperservice.exe",
+    # 工作台平台内置组件（非用户项目）
+    "editor_sdk.exe",
 }
 PROTECTED_PIDS = set()
 
@@ -800,11 +827,74 @@ def _split_csv(line):
         return [line]
 
 
+def _listening_ports():
+    """返回 {pid: [port, ...]}，仅含本地处于 LISTENING 的 TCP 端口。"""
+    result = {}
+    is_win = (os.name == "nt")
+    try:
+        if is_win:
+            out = subprocess.run(
+                ["netstat", "-ano", "-p", "tcp"],
+                capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=20
+            ).stdout or ""
+            for ln in out.splitlines():
+                if "LISTENING" not in ln:
+                    continue
+                parts = ln.split()
+                if len(parts) < 5:
+                    continue
+                local = parts[1]
+                pid_s = parts[-1]
+                if ":" not in local:
+                    continue
+                port = local.rsplit(":", 1)[-1]
+                try:
+                    pid_i = int(pid_s)
+                    port_i = int(port)
+                except Exception:
+                    continue
+                result.setdefault(pid_i, []).append(port_i)
+        else:
+            # Linux: ss -ltnp ；macOS: lsof
+            try:
+                out = subprocess.run(["ss", "-ltnp"], capture_output=True, text=True,
+                                     encoding="utf-8", errors="ignore", timeout=20).stdout or ""
+                for ln in out.splitlines()[1:]:
+                    f = ln.split()
+                    if len(f) < 4:
+                        continue
+                    local = f[3]
+                    if ":" not in local:
+                        continue
+                    port = local.rsplit(":", 1)[-1].split(" ")[0]
+                    m = re.search(r"pid=(\d+)", ln)
+                    if m and port.isdigit():
+                        result.setdefault(int(m.group(1)), []).append(int(port))
+            except Exception:
+                out = subprocess.run(["lsof", "-iTCP", "-sTCP:LISTEN", "-nP"],
+                                     capture_output=True, text=True, encoding="utf-8",
+                                     errors="ignore", timeout=20).stdout or ""
+                for ln in out.splitlines()[1:]:
+                    if "(LISTEN)" not in ln:
+                        continue
+                    f = ln.split()
+                    if len(f) < 2:
+                        continue
+                    mm = re.search(r":(\d+)\s*\(LISTEN\)", ln)
+                    if mm and f[1].isdigit():
+                        result.setdefault(int(f[1]), []).append(int(mm.group(1)))
+    except Exception:
+        return result
+    return result
+
+
 def gather_processes():
-    """跨平台列出进程（零依赖，调用系统命令）。返回列表，含 protected 标记。"""
+    """只列出「监听本地端口的项目」进程（不含系统/自身关键进程）。"""
     rows = []
     is_win = (os.name == "nt")
     try:
+        # 1) 全量进程映射（名称 + 内存），快速
+        proc_map = {}
         if is_win:
             out = subprocess.run(
                 ["tasklist", "/fo", "csv", "/nh"],
@@ -815,31 +905,52 @@ def gather_processes():
                 if not ln:
                     continue
                 p = _split_csv(ln)
-                # 列序：Image Name,PID,Session Name,Session Number,Mem Usage
                 if len(p) < 5:
                     continue
-                name, pid, mem = p[0], p[1], p[4]
-                rows.append(_mk_proc(pid, name, "", "", mem, ""))
+                try:
+                    pid_i = int(p[1])
+                except Exception:
+                    continue
+                proc_map[pid_i] = (p[0], p[4])
         else:
             out = subprocess.run(
                 ["ps", "-eo", "pid,user,%cpu,%mem,comm"],
                 capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=25
             ).stdout or ""
             for ln in out.splitlines()[1:]:
-                ln = ln.strip()
-                if not ln:
-                    continue
-                parts = ln.split(None, 4)
+                parts = ln.strip().split(None, 4)
                 if len(parts) < 5:
                     continue
-                pid, user, cpu, mem, name = parts[0], parts[1], parts[2], parts[3], parts[4]
-                rows.append(_mk_proc(pid, name, user, cpu + "%", mem + "%", "运行"))
+                try:
+                    pid_i = int(parts[0])
+                except Exception:
+                    continue
+                proc_map[pid_i] = (parts[4], parts[1], parts[2] + "%", parts[3] + "%")
+        # 2) 仅保留监听端口的进程，排除系统/自身关键进程
+        listeners = _listening_ports()
+        for pid_i, ports in listeners.items():
+            if pid_i in PROTECTED_PIDS:
+                continue  # 工作台自身，不列入管理
+            if pid_i not in proc_map:
+                continue
+            info = proc_map[pid_i]
+            name = info[0]
+            nm = (name or "").lower().strip()
+            if nm in PROTECTED_NAMES or nm in NON_PROJECT_NAMES:
+                continue  # 系统/平台/非项目GUI进程，不列入管理
+            if is_win:
+                user, cpu, mem = "", "", info[1]
+                rows.append(_mk_proc(pid_i, name, user, cpu, mem, "", sorted(set(ports))))
+            else:
+                user, cpu, mem = info[1], info[2], info[3]
+                rows.append(_mk_proc(pid_i, name, user, cpu, mem, "运行", sorted(set(ports))))
     except Exception:
         return rows
+    rows.sort(key=lambda r: (min(r["ports"]) if r["ports"] else 10 ** 9))
     return rows
 
 
-def _mk_proc(pid, name, user, cpu, mem, status):
+def _mk_proc(pid, name, user, cpu, mem, status, ports=None):
     try:
         pid_i = int(pid)
     except Exception:
@@ -862,7 +973,29 @@ def _mk_proc(pid, name, user, cpu, mem, status):
         "pid": pid_i, "name": name, "user": user, "cpu": cpu,
         "mem": mem, "mem_human": mem_human,
         "status": status, "protected": protected, "reason": reason,
+        "ports": ports or [],
     }
+
+
+def _proc_name(pid):
+    """快速查单个 pid 的进程名（用于 kill 二次复核）。"""
+    try:
+        if os.name == "nt":
+            out = subprocess.run(["tasklist", "/fi", f"PID eq {pid}", "/fo", "csv", "/nh"],
+                                 capture_output=True, text=True, encoding="utf-8",
+                                 errors="ignore", timeout=10).stdout or ""
+            for ln in out.splitlines():
+                p = _split_csv(ln)
+                if len(p) >= 2 and p[1].strip() == str(pid):
+                    return p[0]
+        else:
+            out = subprocess.run(["ps", "-p", str(pid), "-o", "comm="],
+                                 capture_output=True, text=True, encoding="utf-8",
+                                 errors="ignore", timeout=10).stdout or ""
+            return (out.strip().split("/")[-1]) or ""
+    except Exception:
+        return ""
+    return ""
 
 
 def kill_process(pid):
@@ -873,12 +1006,10 @@ def kill_process(pid):
         return {"ok": False, "err": "pid 无效"}
     if pid in PROTECTED_PIDS:
         return {"ok": False, "err": "不能结束工作台自身进程"}
-    # 复核受保护名单（防止前端绕过）
-    for p in gather_processes():
-        if p["pid"] == pid:
-            if p["protected"]:
-                return {"ok": False, "err": f"受保护进程（{p.get('reason', '')}），不能结束"}
-            break
+    # 二次复核受保护名单（防止前端绕过；受保护进程已从列表排除，故按进程名直接核对）
+    nm = _proc_name(pid)
+    if nm and nm.lower().strip() in PROTECTED_NAMES:
+        return {"ok": False, "err": f"受保护进程（系统关键），不能结束：{nm}"}
     is_win = (os.name == "nt")
     try:
         if is_win:

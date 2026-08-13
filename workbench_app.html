@@ -252,6 +252,9 @@ async function load(){
   const st=await (await fetch('/api/wb_status')).json();
   wbStatus=st;
   applyTheme(); syncTheadTop();
+  if(window.ResizeObserver){
+    new ResizeObserver(()=>syncTheadTop()).observe(document.querySelector('header'));
+  }
   if(!st.configured){
     renderSetup(st);
     return;
@@ -684,17 +687,18 @@ function renderProcesses(host){
   if(!DATA.processes){ host.appendChild(el('div','empty','正在加载进程列表…')); loadProcesses(); return; }
   let items=DATA.processes;
   if(query){ const q=query.toLowerCase(); items=items.filter(it=>JSON.stringify(it).toLowerCase().includes(q)); }
-  if(!items.length){ host.appendChild(el('div','empty', query?'没有匹配的进程':'（未扫描到进程）')); return; }
+  if(!items.length){ host.appendChild(el('div','empty', query?'没有匹配的进程':'（未扫描到监听本地端口的进程）')); syncTheadTop(); return; }
   const table=el('table','bitable');
   const thead=el('thead'); const trh=el('tr');
-  ['PID','名称','内存','操作'].forEach(h=>trh.appendChild(el('th',null,h)));
+  ['PID','名称','端口','内存','操作'].forEach(h=>trh.appendChild(el('th',null,h)));
   thead.appendChild(trh); table.appendChild(thead);
   const tb=el('tbody');
   items.forEach(it=>{
     const tr=el('tr');
     tr.appendChild(el('td',null,String(it.pid)));
-    tr.appendChild(el('td',null,it.name||''));
-    tr.appendChild(el('td',null,it.mem_human||it.mem||''));
+    tr.appendChild(el('td',null,it.name||'（未知）'));
+    tr.appendChild(el('td',null,(it.ports||[]).join(', ')||'-'));
+    tr.appendChild(el('td',null,it.mem_human||it.mem||'-'));
     const tdOp=el('td','opcell');
     if(it.protected){
       const b=el('button','btn sm','受保护'); b.disabled=true; b.title=it.reason||'系统/自身关键进程，不可结束'; tdOp.appendChild(b);
@@ -705,6 +709,7 @@ function renderProcesses(host){
     tb.appendChild(tr);
   });
   table.appendChild(tb); host.appendChild(table);
+  syncTheadTop();
 }
 async function loadProcesses(){
   try{
