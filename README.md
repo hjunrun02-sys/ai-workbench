@@ -21,8 +21,10 @@
 要求 **Python 3.8+**（仅用到标准库，无需 `pip install` 任何东西）。
 
 ```bash
-# 1. 克隆
-git clone https://github.com/<你的用户名>/ai-workbench.git
+# 1. 克隆（GitHub）
+git clone https://github.com/hjunrun02-sys/ai-workbench.git
+# 或国内镜像（Gitee）：
+# git clone https://gitee.com/msjr123/ai-workbench.git
 cd ai-workbench
 
 # 2. 启动（自动打开浏览器，默认 http://127.0.0.1:8765）

@@ -284,7 +284,7 @@ Miki 处于自由职业起步期，三大方向为自媒体（纯图文 / AI 生
 
 ## 11. 开源发布（2026-08-13）
 
-- **定位落地**：按 §9.2 决策，项目以 **local-first 开源工具** 形态发布到 GitHub（公开仓库），人人可 `git clone` + `python server.py` 本地运行，无需账号、无需联网。
+- **定位落地**：按 §9.2 决策，项目以 **local-first 开源工具** 形态发布到 **GitHub 与 Gitee 双平台**（均为公开仓库、代码同步镜像），人人可 `git clone` + `python server.py` 本地运行，无需账号、无需联网。
 - **与运行时解耦（关键重构）**：发布版 `server.py` 已重写为**完全自包含**（纯 Python 标准库，零依赖）：
   - 不再依赖 WorkBuddy 运行时的 `.workbuddy/` 私有目录与全局 `workbuddy.db`；
   - 数据改存本地 `data/` 目录（可用环境变量 `AI_WORKBENCH_DATA` 覆盖）；
@@ -292,7 +292,11 @@ Miki 处于自由职业起步期，三大方向为自媒体（纯图文 / AI 生
   - 移除飞书 `sync.py` 依赖与硬编码 token / 绝对路径。
 - **隐私保障**：仓库 `.gitignore` 排除 `.workbuddy/`、本地数据库（`data/*.db`）与 `*.bak`；私人数据（记忆、自动化库、飞书配置）绝不入库。
 - **交付物**：`server.py`、`workbench_app.html`、`data/`（示例数据）、`README.md`、`LICENSE`（MIT）、`requirements.txt`、`.gitignore`。
-- **状态**：本地 git 仓库已 `init` 并提交初始版本（commit `be2cb0a`）；GitHub 公开仓库的创建与推送，待用户提供 GitHub Personal Access Token（repo 权限）后执行。
+- **状态（已发布）**：
+  - 本地 git 仓库已 `init`，`main` 分支，初始提交 `be2cb0a` + PRD 章节提交 `f31c0f1`；
+  - **GitHub** 公开仓库：`https://github.com/hjunrun02-sys/ai-workbench`（含 v0.1.0 Release）；
+  - **Gitee** 公开镜像：`https://gitee.com/msjr123/ai-workbench`（已设为公开，含 v0.1.0 标签）；
+  - 本地配置双远程：`origin` = GitHub，`gitee` = Gitee；后续更新由维护者分别推送两个平台。
 
 ## 12. 附录
 
