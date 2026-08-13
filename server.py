@@ -18,7 +18,9 @@ AI 工作台 —— 本地可编辑服务（飞书表格风格，纯标准库，
     - POST /api/delete        删除（亮点/定时任务/记忆小节/对话记忆）
     - GET  /api/skill_content 读取某 Skill 的 SKILL.md 全文
     - GET  /api/git_repos     扫描并列出本地 Git 仓库（路径/分支/状态/远程）
-    - POST /api/git_action    Git 基础操作（fetch/pull/checkout/clone）
+    - POST /api/git_action    Git 操作（fetch/pull/checkout/clone/push，远程操作自动注入令牌）
+    - GET  /api/tokens        读取 GitHub/Gitee 令牌脱敏摘要（不回显明文）
+    - POST /api/tokens        保存/删除平台令牌（写入本地 .git/config，不进仓库）
     - GET  /api/backups       列出所有 .bak 备份
     - POST /api/restore       一键还原某个 .bak
     - POST /api/shutdown      关闭本地服务
@@ -805,6 +807,107 @@ def add_automation(name, prompt, ftype="每日", status="运行中", hour=9, min
     return DB, aid
 
 
+# ---------------- 平台令牌管理（直接管理 GitHub/Gitee） ----------------
+def parse_git_tokens():
+    """从本地 .git/config 的 insteadOf 读回已配置的 GitHub/Gitee 令牌（仅判断是否已配置，不回显明文）。"""
+    out = {"github": None, "gitee": None}
+    res = run_git(["git", "-C", HERE, "config", "--get-regexp", r"^url\."])
+    if not res["ok"]:
+        return out
+    for ln in res["out"].splitlines():
+        if ".insteadof" not in ln.lower():
+            continue
+        m = re.match(r"^url\.(https://[^/]+/)\.insteadof\s+(\S+)$", ln, re.IGNORECASE)
+        if not m:
+            continue
+        base, target = m.group(1), m.group(2)
+        mm = re.match(r"https://([^@]+)@(.+)$", base)
+        if not mm:
+            continue
+        userinfo, host = mm.group(1), mm.group(2)
+        if "github.com" in target:
+            out["github"] = {"token": userinfo, "username": ""}
+        elif "gitee.com" in target:
+            if ":" in userinfo:
+                u, t = userinfo.split(":", 1)
+                out["gitee"] = {"token": t, "username": u}
+            else:
+                out["gitee"] = {"token": userinfo, "username": ""}
+    return out
+
+
+def git_token_summary():
+    """返回给前端的脱敏摘要（绝不回显明文令牌）。"""
+    toks = parse_git_tokens()
+    summary = {}
+    for plat in ("github", "gitee"):
+        t = toks.get(plat)
+        if t and t.get("token"):
+            tok = t["token"]
+            summary[plat] = {
+                "configured": True,
+                "username": t.get("username", ""),
+                "token_masked": ("****" + tok[-4:]) if len(tok) >= 4 else "****",
+            }
+        else:
+            summary[plat] = {"configured": False, "username": "", "token_masked": ""}
+    return summary
+
+
+def write_git_token(platform, username, token):
+    """把平台令牌写入本地 .git/config（insteadOf 形式，不进仓库、不被推送）。"""
+    platform = (platform or "").lower()
+    if platform not in ("github", "gitee"):
+        raise ValueError("不支持的平台：" + str(platform))
+    token = (token or "").strip()
+    if not token:
+        raise ValueError("令牌不能为空")
+    if platform == "gitee" and not (username or "").strip():
+        raise ValueError("Gitee 需要填写用户名（gitee 登录名）")
+    rem = "https://github.com/" if platform == "github" else "https://gitee.com/"
+    # 清掉该平台已有的 insteadOf（可能有多条/旧格式），避免重复
+    res = run_git(["git", "-C", HERE, "config", "--get-regexp", r"^url\."])
+    for ln in (res["out"] or "").splitlines():
+        if rem in ln and ".insteadof" in ln.lower():
+            key = ln.split()[0]
+            run_git(["git", "-C", HERE, "config", "--unset", key])
+    if platform == "github":
+        base = f"https://{token}@github.com/"
+    else:
+        base = f"https://{(username or '').strip()}:{token}@gitee.com/"
+    r = run_git(["git", "-C", HERE, "config", f"url.{base}.insteadOf", rem])
+    if not r["ok"]:
+        raise ValueError("写入令牌到 .git/config 失败：" + r["err"])
+    return True
+
+
+def delete_git_token(platform):
+    """删除某平台在 .git/config 里的 insteadOf 令牌配置。"""
+    platform = (platform or "").lower()
+    rem = "https://github.com/" if platform == "github" else "https://gitee.com/"
+    res = run_git(["git", "-C", HERE, "config", "--get-regexp", r"^url\."])
+    removed = 0
+    for ln in (res["out"] or "").splitlines():
+        if rem in ln and ".insteadof" in ln.lower():
+            key = ln.split()[0]
+            run_git(["git", "-C", HERE, "config", "--unset", key])
+            removed += 1
+    return removed
+
+
+def git_inject_flags():
+    """生成本次 git 命令的令牌注入参数（-c url...insteadOf），让远程操作在沙箱非交互可用，且不污染任何 git 配置。"""
+    toks = parse_git_tokens()
+    flags = []
+    gh = toks.get("github")
+    if gh and gh.get("token"):
+        flags += ["-c", f"url.https://{gh['token']}@github.com/.insteadOf=https://github.com/"]
+    ge = toks.get("gitee")
+    if ge and ge.get("token"):
+        flags += ["-c", f"url.https://{ge['username']}:{ge['token']}@gitee.com/.insteadOf=https://gitee.com/"]
+    return flags
+
+
 # ---------------- Git 操作 ----------------
 def safe_clone_dest(dest):
     dest = os.path.abspath(os.path.expanduser(dest))
@@ -821,10 +924,11 @@ def safe_clone_dest(dest):
 def git_action(body):
     action = body.get("action")
     path = body.get("path")
+    inject = git_inject_flags()
     if action == "fetch":
-        res = run_git(["git", "-C", path, "fetch", "--all"])
+        res = run_git(["git"] + inject + ["-C", path, "fetch", "--all"])
     elif action == "pull":
-        res = run_git(["git", "-C", path, "pull"])
+        res = run_git(["git"] + inject + ["-C", path, "pull"])
     elif action == "checkout":
         res = run_git(["git", "-C", path, "checkout", body.get("branch", "")])
     elif action == "clone":
@@ -834,7 +938,26 @@ def git_action(body):
             raise ValueError("clone 需要 url 与 dest")
         if not safe_clone_dest(dest):
             raise ValueError("目标路径不在允许的仓库根内（见 data/git_roots.txt）")
-        res = run_git(["git", "clone", url, dest])
+        res = run_git(["git"] + inject + ["clone", url, dest])
+    elif action == "push":
+        branch = body.get("branch") or run_git(
+            ["git", "-C", path, "branch", "--show-current"]).get("out", "").strip()
+        if not branch:
+            raise ValueError("无法确定当前分支（可能处于分离头指针），无法推送")
+        remotes = body.get("remotes") or []
+        if not remotes:
+            info = describe_git(path)
+            remotes = [r["name"] for r in info.get("远程", [])] if info else []
+        remotes = list(dict.fromkeys(remotes))  # 去重（git remote -v 会列 fetch/push 两行同名）
+        if not remotes:
+            raise ValueError("该仓库没有配置任何远程，无法推送")
+        agg, ok_all = [], True
+        for rm in remotes:
+            cmd = ["git"] + inject + ["-C", path, "push", rm, branch]
+            r = run_git(cmd)
+            ok_all = ok_all and r["ok"]
+            agg.append(f"[{rm}] {'成功' if r['ok'] else '失败'} (code {r['code']})\n{r['out']}{r['err']}".strip())
+        res = {"ok": ok_all, "out": "\n".join(agg), "err": "", "code": 0 if ok_all else 1}
     else:
         raise ValueError("未知操作：" + str(action))
     return res
@@ -911,6 +1034,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"ok": True, "repos": gather_git_repos()})
         elif parsed.path == "/api/backups":
             self._send(200, {"ok": True, "backups": list_backups()})
+        elif parsed.path == "/api/tokens":
+            self._send(200, {"ok": True, "tokens": git_token_summary()})
         else:
             self._send(404, {"error": "not found"})
 
@@ -991,6 +1116,14 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/restore":
                 original = restore_backup(body.get("file", ""))
                 self._send(200, {"ok": True, "path": original})
+            elif self.path == "/api/tokens":
+                plat = body.get("platform", "")
+                if body.get("op") == "delete":
+                    n = delete_git_token(plat)
+                    self._send(200, {"ok": True, "removed": n})
+                else:
+                    write_git_token(plat, body.get("username", ""), body.get("token", ""))
+                    self._send(200, {"ok": True})
             elif self.path == "/api/shutdown":
                 self._send(200, {"ok": True})
                 os._exit(0)

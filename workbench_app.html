@@ -158,7 +158,7 @@ footer{padding:16px 22px;color:var(--muted);font-size:12px;max-width:1240px;marg
   <div class="toolbar" id="toolbar"></div>
   <div class="tablecard"><div id="tableHost"></div></div>
 </div>
-<footer>数据来源：automations 数据库、MEMORY.md、skills、highlights.md、conversation_memory.md、本地 Git 仓库。修改/删除会写回这些文件本身并生成备份。</footer>
+<footer>数据来源：automations 数据库、MEMORY.md、skills、highlights.md、conversation_memory.md、本地 Git 仓库。修改/删除会写回这些文件本身并生成备份。可在「平台令牌」中配置 GitHub/Gitee 令牌，直接对本工作台及本地 Git 仓库做推送 / 拉取 / 克隆。</footer>
 
 <div class="overlay" id="overlay">
   <div class="modal">
@@ -277,6 +277,7 @@ function buildToolbar(){
     conversation_memory:{label:'+ 新增对话记忆', fn:openAddCM},
   }[activeKey];
   if(addBtn){ const b=el('button','btn primary',addBtn.label); b.onclick=addBtn.fn; tb.appendChild(b); }
+  const tok=el('button','btn ghost','平台令牌'); tok.onclick=openTokens; tb.appendChild(tok);
   const bak=el('button','btn ghost','备份管理');
   bak.onclick=openBackups; tb.appendChild(bak);
   const close=el('button','btn ghost','关闭工作台');
@@ -578,6 +579,7 @@ function renderGit(host){
     ops.appendChild(mk('fetch',()=>gitAct('fetch',r['路径'])));
     ops.appendChild(mk('pull',()=>gitAct('pull',r['路径'])));
     ops.appendChild(mk('checkout',()=>{const b=prompt('切换到分支名：',r['分支']); if(b)gitAct('checkout',r['路径'],b);}));
+    ops.appendChild(mk('推送',()=>gitAct('push',r['路径'])));
     card.appendChild(ops);
     grid.appendChild(card);
   });
@@ -613,6 +615,58 @@ async function openBackups(){
   document.getElementById('mHint').textContent='每个 .bak 是对应文件上次写前的副本。还原会把它复制回原文件。';
   document.getElementById('saveBtn').style.display='none';
   document.getElementById('overlay').style.display='flex';
+}
+async function openTokens(){
+  const r=await fetch('/api/tokens'); const j=await r.json();
+  const tk=j.tokens||{};
+  editCtx={viewOnly:true};
+  document.getElementById('mTitle').textContent='平台令牌管理（GitHub / Gitee）';
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  const platforms=[
+    {key:'github',label:'GitHub',hint:'填写 Personal Access Token（ghp_...）。令牌写入本机 .git/config（insteadOf），不进仓库、不会被推送。'},
+    {key:'gitee',label:'Gitee',hint:'填写登录名 + 私人令牌。Gitee 需要「用户名:令牌」格式（如 msjr123:xxxx）。'},
+  ];
+  platforms.forEach(p=>{
+    const t=tk[p.key]||{configured:false,username:'',token_masked:''};
+    body.appendChild(el('div','flabel',p.label+(t.configured?'（已配置 '+t.token_masked+'）':'')));
+    const card=el('div','bak-item'); card.style.flexDirection='column'; card.style.alignItems='stretch';
+    if(p.key==='gitee'){
+      const u=document.createElement('input'); u.className='mctrl'; u.id='tok_'+p.key+'_user';
+      u.placeholder='Gitee 登录名（如 msjr123）'; u.value=t.username||''; card.appendChild(u);
+    }
+    const tok=document.createElement('input'); tok.className='mctrl'; tok.id='tok_'+p.key;
+    tok.placeholder=p.key==='github'?'GitHub PAT（ghp_...）':'Gitee 私人令牌';
+    tok.style.marginTop='8px'; card.appendChild(tok);
+    const row=el('div','row'); row.style.marginTop='10px';
+    const save=el('button','btn primary','保存'+p.label); save.onclick=()=>saveToken(p.key); row.appendChild(save);
+    if(t.configured){
+      const del=el('button','btn danger','删除'+p.label); del.onclick=()=>delToken(p.key); row.appendChild(del);
+    }
+    card.appendChild(row);
+    body.appendChild(card);
+    body.appendChild(el('div','hint',p.hint));
+  });
+  document.getElementById('mHint').textContent='令牌用于工作台直接对 GitHub/Gitee 做 push/pull/clone 等远程操作；明文仅存于本机 .git/config，建议机器不再使用时去对应平台撤销。';
+  document.getElementById('saveBtn').style.display='none';
+  document.getElementById('overlay').style.display='flex';
+}
+async function saveToken(plat){
+  const token=document.getElementById('tok_'+plat).value.trim();
+  const user=document.getElementById('tok_'+plat+'_user')?document.getElementById('tok_'+plat+'_user').value.trim():'';
+  if(!token){toast('令牌不能为空',true);return;}
+  const r=await fetch('/api/tokens',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({platform:plat,username:user,token})});
+  const j=await r.json();
+  if(!j.ok){toast('保存失败：'+(j.error||''),true);return;}
+  await openTokens(); toast('已保存 '+plat+' 令牌');
+}
+async function delToken(plat){
+  if(!confirm('删除 '+plat+' 令牌？删除后远程操作将改用本机凭据管理器（可能需弹窗授权）。'))return;
+  const r=await fetch('/api/tokens',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({op:'delete',platform:plat})});
+  const j=await r.json();
+  if(!j.ok){toast('删除失败：'+(j.error||''),true);return;}
+  await openTokens(); toast('已删除 '+plat+' 令牌');
 }
 function closeEditor(){
   document.getElementById('overlay').style.display='none';

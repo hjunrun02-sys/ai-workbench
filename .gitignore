@@ -8,3 +8,5 @@ workbench_addr.txt
 # 本地运行时生成的数据库（首次启动自动重建 + 示例数据）
 data/automations.db
 data/*.db
+# 本地生成的 Git 扫描根配置（含本机绝对路径，自动重建）
+data/git_roots.txt
