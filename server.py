@@ -8,7 +8,7 @@ AI 工作台 —— 本地可编辑服务（飞书表格风格，纯标准库，
   “编辑并确认改到本地文件”，必须有一个本地后端。本服务只绑定
   127.0.0.1（不暴露到外网），负责：
     - GET  /                  返回飞书表格风格前端 workbench_app.html
-    - GET  /api/data          返回 5 类数据（定时任务/记忆/Skill/每日亮点/对话记忆）+ Git 仓库 + 计数 + 可筛选维度
+    - GET  /api/data          返回 6 类数据（定时任务/记忆/Skill/每日亮点/对话记忆）+ Git 仓库 + 计数 + 可筛选维度
     - POST /api/update        修改某条记录单字段
     - POST /api/update_multi  一次修改多个字段（含定时任务多字段编辑）
     - POST /api/update_category  修改某条记录的分类
@@ -25,19 +25,16 @@ AI 工作台 —— 本地可编辑服务（飞书表格风格，纯标准库，
     - POST /api/restore       一键还原某个 .bak
     - POST /api/shutdown      关闭本地服务
 
-数据全部落在 DATA_DIR（默认本程序同级的 ./data，可用环境变量
-AI_WORKBENCH_DATA 覆盖），不上云、不依赖任何第三方运行时。
-
-写回目标（即“本地真源”）：
-    定时任务  -> data/automations.db（SQLite，自带建表 + 示例数据）
-    记忆      -> data/memory/MEMORY.md 的 ## 小节
-    Skill     -> data/skill_override.json（覆盖功能说明）
-    每日亮点  -> data/highlights.md（类型/分类/内容/增删）
-    对话记忆  -> data/conversation_memory.md（类型/分类/内容/增删）
-    分类      -> data/categories.json（4 类资产统一分类索引）
-    Git 仓库  -> 本地真实 .git 目录（只读扫描 + 本地 git 子进程操作）
-
-每次写前自动生成 .bak 备份，写坏可恢复。
+数据来源（用户选择「直接读写真实 WorkBuddy」，故核心资产直连活数据）：
+    定时任务  -> ~/.workbuddy/workbuddy.db（真实 WorkBuddy 自动化库，可读写）
+    记忆      -> ~/.workbuddy/MEMORY.md（全局长期记忆，可读写，每次写前 .bak 备份）
+    Skill     -> ~/.workbuddy/skills/（真实用户级 Skill，查看真实内容；编辑写覆盖层 data/skill_override.json）
+工作台自身数据（无真实对应物的概念，留在本地 ./data，不上云）：
+    每日亮点  -> data/highlights.md
+    对话记忆  -> data/conversation_memory.md
+    分类      -> data/categories.json（统一分类索引）
+    Git 仓库  -> 本地真实 .git 目录（只读扫描 + 本地 git 子进程操作，远程操作注入令牌）
+不依赖任何第三方运行时；写真实文件/库前均自动 .bak 备份，写坏可还原。
 """
 
 import os
@@ -57,14 +54,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------- 数据目录（人人可装：默认本地 ./data，可覆盖） ----------------
 DATA_DIR = os.environ.get("AI_WORKBENCH_DATA") or os.path.join(HERE, "data")
+# 工作台自身本地数据（无真实 WorkBuddy 对应物的概念：亮点/对话记忆/分类索引/技能覆盖层）
 HIGHLIGHTS_PATH = os.path.join(DATA_DIR, "highlights.md")
-MEMORY_PATH = os.path.join(DATA_DIR, "memory", "MEMORY.md")
-SKILLS_DIR = os.path.join(DATA_DIR, "skills")
 OVERRIDE_PATH = os.path.join(DATA_DIR, "skill_override.json")
 CATEGORIES_PATH = os.path.join(DATA_DIR, "categories.json")
 CONVERSATION_PATH = os.path.join(DATA_DIR, "conversation_memory.md")
 GIT_ROOTS_FILE = os.path.join(DATA_DIR, "git_roots.txt")
-DB = os.path.join(DATA_DIR, "automations.db")
+# 真实 WorkBuddy 数据（用户选择「直接读写真实 WorkBuddy」：显示与管理均指向活数据）
+WB_HOME = os.path.expanduser("~/.workbuddy")
+MEMORY_PATH = os.path.join(WB_HOME, "MEMORY.md")      # 全局长期记忆（真实，可读写）
+SKILLS_DIR = os.path.join(WB_HOME, "skills")          # 用户级 Skill（真实，查看真实内容）
+DB = os.path.join(WB_HOME, "workbuddy.db")            # 定时任务（真实，可读写）
 HTML_PATH = os.path.join(HERE, "workbench_app.html")
 PORT = 8765
 
@@ -287,8 +287,11 @@ def init_db():
             created_at INTEGER, updated_at INTEGER, deleted_at INTEGER,
             next_run_at INTEGER)"""
     )
-    if con.execute("SELECT COUNT(*) FROM automations").fetchone()[0] == 0:
-        seed_automations(con)
+    # 仅当使用「自带示例库」(data/automations.db) 且为空时才注入示例；
+    # 真实 WorkBuddy 库即使为空也不注入示例，避免污染活数据。
+    if DB == os.path.join(DATA_DIR, "automations.db"):
+        if con.execute("SELECT COUNT(*) FROM automations").fetchone()[0] == 0:
+            seed_automations(con)
     con.commit()
     con.close()
     return DB
@@ -389,7 +392,7 @@ def gather_memory():
     for heading, body in parse_sections(MEMORY_PATH):
         if not body:
             continue
-        rows.append({"id": heading, "主题": heading, "内容": body[:1500],
+        rows.append({"id": heading, "主题": heading, "内容": body,
                      "来源": os.path.relpath(MEMORY_PATH, DATA_DIR),
                      "分类": category_of("memory", heading)})
     return rows

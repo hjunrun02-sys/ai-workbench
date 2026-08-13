@@ -40,7 +40,7 @@ cd ai-workbench
 python server.py
 ```
 
-首次启动会自动在 `data/` 下建库并写入示例数据，界面直接有内容。
+默认**直接读取你真实的 WorkBuddy 数据**（`~/.workbuddy/workbuddy.db` 的自动化、`~/.workbuddy/MEMORY.md` 的记忆、`~/.workbuddy/skills/` 的技能），所以界面显示的就是你 WorkBuddy 里的真实内容，二者保持一致。仅当使用自带的示例库 `data/automations.db`（无 WorkBuddy 环境 / 纯开源自托管）时才注入示例数据。
 
 > 默认绑定 `127.0.0.1:8765`；端口被占用时 `server.py` 会自动顺延（8765~8814）。启动后浏览器自动打开，若没打开请手动访问终端打印的地址。用完点页面里的「关闭工作台」即可。
 
@@ -53,9 +53,9 @@ python server.py
 
 | 分类 | 数据存储 | 说明 |
 | --- | --- | --- |
-| 定时任务 | `data/automations.db`（SQLite） | 调度自动化，界面内多字段编辑 |
-| 记忆 | `data/memory/MEMORY.md` | 长期项目笔记 / 偏好 |
-| Skill | `data/skills/<名称>/SKILL.md` | 技能说明，可查看全文 |
+| 定时任务 | `~/.workbuddy/workbuddy.db`（真实 WorkBuddy 自动化库，可读写） | 调度自动化，界面内多字段编辑 |
+| 记忆 | `~/.workbuddy/MEMORY.md`（全局长期记忆，可读写） | 长期偏好 / 协作约定，写前自动 `.bak` |
+| Skill | `~/.workbuddy/skills/<名称>/SKILL.md`（真实用户级技能） | 技能说明，可查看全文 |
 | 每日亮点 | `data/highlights.md` | 当日要点，支持分类 |
 | 对话记忆 | `data/conversation_memory.md` | 跨会话关键结论（`CM-` 前缀），支持分类 |
 | 本地 Git 仓库 | 扫描本机（深度 `GIT_DEPTH=4`）+ `data/git_roots.txt` | 分支 / 状态 / 远程；令牌驱动远程操作 |
