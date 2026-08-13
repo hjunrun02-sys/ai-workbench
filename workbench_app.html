@@ -225,6 +225,7 @@ const CAN_DELETE = {automations:true, memory:true, skills:false, highlights:true
 let DATA={}, COUNTS={}, FILTERS={};
 let activeKey=SECTIONS[0].key, query="", activeFilters={};
 let editCtx=null;
+let wbStatus=null;
 
 function el(tag,cls,t){const e=document.createElement(tag);if(cls)e.className=cls;if(t!=null)e.textContent=t;return e;}
 function badgeClass(t){return (['决策','学习','洞察','任务','运行中','已暂停','用户级','项目级','有改动','干净','未分类'].includes(t))?t:'其他';}
@@ -237,10 +238,54 @@ function syncTheadTop(){
 }
 
 async function load(){
+  const st=await (await fetch('/api/wb_status')).json();
+  wbStatus=st;
+  applyTheme(); syncTheadTop();
+  if(!st.configured){
+    renderSetup(st);
+    return;
+  }
   const r=await fetch('/api/data'); const j=await r.json();
   DATA=j.data; COUNTS=j.counts; FILTERS=j.filters;
-  applyTheme();
-  buildTabs(); buildFilters(); buildToolbar(); render(); syncTheadTop();
+  buildTabs(); buildFilters(); buildToolbar(); render();
+}
+function shortPath(p){ if(!p) return ''; const s=String(p).replace(/\\/g,'/'); const parts=s.split('/'); return parts.length>2 ? '…/'+parts.slice(-2).join('/') : s; }
+function renderSetup(st){
+  document.getElementById('tabs').innerHTML='';
+  document.getElementById('filters').innerHTML='';
+  const tb=document.getElementById('toolbar'); tb.innerHTML='';
+  const sp=el('div','spacer'); tb.appendChild(sp);
+  const themeBtn=el('button','btn ghost','主题'); themeBtn.onclick=toggleTheme; tb.appendChild(themeBtn);
+  const host=document.getElementById('tableHost'); host.innerHTML='';
+  const wrap=el('div'); wrap.style.maxWidth='640px'; wrap.style.margin='0 auto';
+  const card=el('div'); card.style.background='var(--card)'; card.style.border='1px solid var(--border)';
+  card.style.borderRadius='12px'; card.style.padding='24px'; card.style.boxShadow='0 1px 4px rgba(0,0,0,.04)';
+  const h=document.createElement('h3'); h.textContent='未检测到 WorkBuddy 数据目录'; h.style.margin='0 0 8px'; h.style.fontSize='16px'; h.style.fontWeight='600';
+  card.appendChild(h);
+  const p=document.createElement('div'); p.style.color='var(--muted)'; p.style.lineHeight='1.7'; p.style.marginBottom='16px';
+  p.innerHTML='工作台直接读取你本机的 WorkBuddy 数据（定时任务 / 记忆 / Skill）。<br>请填写 WorkBuddy 数据目录的绝对路径，保存后即刻连接。<br><b style="color:var(--warn)">注意：全程不会写入任何示例数据，也不会在你目录里新建文件。</b>';
+  card.appendChild(p);
+  const label=el('div','flabel','WorkBuddy 数据目录路径'); label.style.marginBottom='6px';
+  card.appendChild(label);
+  const input=document.createElement('input'); input.className='mctrl'; input.id='wbPath';
+  input.placeholder='例如：C:\\Users\\你的用户名\\.workbuddy 或 /home/你/.workbuddy';
+  card.appendChild(input);
+  const err=document.createElement('div'); err.id='wbErr'; err.style.color='var(--danger)'; err.style.fontSize='12px'; err.style.marginTop='8px'; err.style.minHeight='16px';
+  card.appendChild(err);
+  const row=el('div','row'); row.style.marginTop='16px';
+  const save=el('button','btn primary','保存并连接'); save.onclick=saveWbHome; row.appendChild(save);
+  card.appendChild(row);
+  wrap.appendChild(card); host.appendChild(wrap);
+  setTimeout(()=>input.focus(),30);
+}
+async function saveWbHome(){
+  const input=document.getElementById('wbPath'); const path=input.value.trim();
+  const err=document.getElementById('wbErr');
+  if(!path){err.textContent='请填写路径';return;}
+  const r=await fetch('/api/wb_home',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path})});
+  const j=await r.json();
+  if(!j.ok){err.textContent='连接失败：'+(j.error||'');return;}
+  toast('已连接 WorkBuddy：'+(j.wb_home||'')); await load();
 }
 function buildTabs(){
   const t=document.getElementById('tabs'); t.innerHTML='';
@@ -278,7 +323,12 @@ function buildToolbar(){
     conversation_memory:{label:'+ 新增对话记忆', fn:openAddCM},
   }[activeKey];
   if(addBtn){ const b=el('button','btn primary',addBtn.label); b.onclick=addBtn.fn; tb.appendChild(b); }
-  const tok=el('button','btn ghost','平台令牌'); tok.onclick=openTokens; tb.appendChild(tok);
+  const tok=el('button','btn ghost','平台令牌'); tok.onclick=openTokens;   tb.appendChild(tok);
+  if(wbStatus && wbStatus.configured){
+    const conn=el('button','btn ghost','已连接：'+shortPath(wbStatus.wb_home));
+    conn.title=wbStatus.wb_home||''; conn.onclick=()=>{ if(confirm('更改 WorkBuddy 目录？将断开当前连接并回到设置页。')){ wbStatus={configured:false}; renderSetup(wbStatus); } };
+    tb.appendChild(conn);
+  }
   if(activeKey==='processes'){ const ref=el('button','btn ghost','刷新进程'); ref.onclick=loadProcesses; tb.appendChild(ref); }
   const bak=el('button','btn ghost','备份管理');
   bak.onclick=openBackups; tb.appendChild(bak);

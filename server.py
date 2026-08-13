@@ -22,21 +22,25 @@ AI 工作台 —— 本地可编辑服务（飞书表格风格，纯标准库，
     - POST /api/git_action    Git 操作（fetch/pull/checkout/clone/push，远程操作自动注入令牌）
     - GET  /api/tokens        读取 GitHub/Gitee 令牌脱敏摘要（不回显明文）
     - POST /api/tokens        保存/删除平台令牌（写入本地 .git/config，不进仓库）
+    - GET  /api/wb_status     返回是否已连接 WorkBuddy 数据目录及检测到的标记
+    - POST /api/wb_home       在设置页保存用户指定的 WorkBuddy 目录路径（写入 data/wb_home.txt）
     - GET  /api/backups       列出所有 .bak 备份
     - POST /api/restore       一键还原某个 .bak
     - POST /api/kill_process  结束指定 PID 的进程（服务端二次复核受保护进程，禁止误杀系统/自身）
     - POST /api/shutdown      关闭本地服务
 
-数据来源（用户选择「直接读写真实 WorkBuddy」，故核心资产直连活数据）：
-    定时任务  -> ~/.workbuddy/workbuddy.db（真实 WorkBuddy 自动化库，可读写）
-    记忆      -> ~/.workbuddy/MEMORY.md（全局长期记忆，可读写，每次写前 .bak 备份）
-    Skill     -> ~/.workbuddy/skills/（真实用户级 Skill，查看真实内容；编辑写覆盖层 data/skill_override.json）
+数据来源（直接读写真实 WorkBuddy，故核心资产直连活数据）：
+    定时任务  -> <WB_HOME>/workbuddy.db（真实 WorkBuddy 自动化库，可读写）
+    记忆      -> <WB_HOME>/MEMORY.md（全局长期记忆，可读写，每次写前 .bak 备份）
+    Skill     -> <WB_HOME>/skills/（真实用户级 Skill，查看真实内容；编辑写覆盖层 data/skill_override.json）
+    WB_HOME 通过「三重定位」确定（详见 README）：环境变量 WORKBUDDY_HOME > data/wb_home.txt（设置页指定）
+    > 自动探测常见位置（~/.workbuddy 等）并校验标记。全部失败则为 None —— 进入设置页，绝不写示例数据。
 工作台自身数据（无真实对应物的概念，留在本地 ./data，不上云）：
     每日亮点  -> data/highlights.md
     对话记忆  -> data/conversation_memory.md
     分类      -> data/categories.json（统一分类索引）
     Git 仓库  -> 本地真实 .git 目录（只读扫描 + 本地 git 子进程操作，远程操作注入令牌）
-不依赖任何第三方运行时；写真实文件/库前均自动 .bak 备份，写坏可还原。
+不依赖任何第三方运行时；写真实文件/库前均自动 .bak 备份，写坏可还原。首次启动绝不写入任何示例数据。
 """
 
 import os
@@ -64,11 +68,89 @@ OVERRIDE_PATH = os.path.join(DATA_DIR, "skill_override.json")
 CATEGORIES_PATH = os.path.join(DATA_DIR, "categories.json")
 CONVERSATION_PATH = os.path.join(DATA_DIR, "conversation_memory.md")
 GIT_ROOTS_FILE = os.path.join(DATA_DIR, "git_roots.txt")
-# 真实 WorkBuddy 数据（用户选择「直接读写真实 WorkBuddy」：显示与管理均指向活数据）
-WB_HOME = os.path.expanduser("~/.workbuddy")
-MEMORY_PATH = os.path.join(WB_HOME, "MEMORY.md")      # 全局长期记忆（真实，可读写）
-SKILLS_DIR = os.path.join(WB_HOME, "skills")          # 用户级 Skill（真实，查看真实内容）
-DB = os.path.join(WB_HOME, "workbuddy.db")            # 定时任务（真实，可读写）
+# 真实 WorkBuddy 数据：通过「三重定位」确定家目录（详见 README）：
+#   1) 环境变量 WORKBUDDY_HOME（最权威，用户可显式覆盖）
+#   2) 上次在设置页手动指定的路径（持久化于 data/wb_home.txt）
+#   3) 自动探测常见位置（~/.workbuddy 等），并用标记校验确认
+# 全部失败则为 None —— 此时进入「设置页」模式，绝不写示例数据、绝不新建目录/库。
+WB_HOME = None
+MEMORY_PATH = None
+SKILLS_DIR = None
+DB = None
+
+def _looks_like_wb_home(p):
+    """目录存在，且命中任一标记即视为有效的 WorkBuddy 家目录。"""
+    if not p or not os.path.isdir(p):
+        return False
+    db = os.path.join(p, "workbuddy.db")
+    if os.path.exists(db):
+        try:
+            c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            ok = c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='automations'"
+            ).fetchone()
+            c.close()
+            if ok:
+                return True
+        except Exception:
+            pass
+    if os.path.exists(os.path.join(p, "MEMORY.md")):
+        return True
+    if os.path.isdir(os.path.join(p, "skills")):
+        return True
+    return False
+
+def _detect_wb_home():
+    """按优先级探测并返回有效 WorkBuddy 家目录；全失败返回 None。"""
+    candidates = []
+    env = os.environ.get("WORKBUDDY_HOME")
+    if env:
+        candidates.append(os.path.expanduser(env))
+    # 上次用户在设置页手动指定的路径：插到最前，优先于默认探测
+    saved = os.path.join(DATA_DIR, "wb_home.txt")
+    if os.path.exists(saved):
+        try:
+            v = open(saved, encoding="utf-8").read().strip()
+            if v:
+                candidates.insert(0, os.path.expanduser(v))
+        except Exception:
+            pass
+    home = os.path.expanduser("~")
+    candidates += [
+        os.path.join(home, ".workbuddy"),
+        os.path.join(home, "Library", "Application Support", "WorkBuddy"),
+        os.path.join(home, ".config", "workbuddy"),
+        os.path.join(home, ".local", "share", "workbuddy"),
+    ]
+    for c in candidates:
+        if _looks_like_wb_home(c):
+            return c
+    return None
+
+def resolve_wb_paths():
+    """定位 WorkBuddy 家目录并派生真实数据路径；未检测到则全部为 None。"""
+    global WB_HOME, MEMORY_PATH, SKILLS_DIR, DB
+    WB_HOME = _detect_wb_home()
+    if WB_HOME:
+        MEMORY_PATH = os.path.join(WB_HOME, "MEMORY.md")
+        SKILLS_DIR = os.path.join(WB_HOME, "skills")
+        DB = os.path.join(WB_HOME, "workbuddy.db")
+    return WB_HOME
+
+def _wb_markers():
+    """返回当前 WB_HOME 下命中的标记（供前端展示已连接内容）。"""
+    if not WB_HOME:
+        return []
+    m = []
+    if os.path.exists(os.path.join(WB_HOME, "workbuddy.db")):
+        m.append("workbuddy.db")
+    if os.path.exists(os.path.join(WB_HOME, "MEMORY.md")):
+        m.append("MEMORY.md")
+    if os.path.isdir(os.path.join(WB_HOME, "skills")):
+        m.append("skills/")
+    return m
+
+resolve_wb_paths()   # 模块加载即尝试定位（可能为 None）
 HTML_PATH = os.path.join(HERE, "workbench_app.html")
 PORT = 8765
 
@@ -277,56 +359,29 @@ def compute_next_run(rrule, schedule_type, scheduled_at):
 
 
 def init_db():
+    # 工作台自身本地数据目录（与 WorkBuddy 无关，可安全创建）
     os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(os.path.dirname(MEMORY_PATH), exist_ok=True)
-    os.makedirs(SKILLS_DIR, exist_ok=True)
     ensure_git_roots()
-    con = sqlite3.connect(DB)
-    con.execute(
-        """CREATE TABLE IF NOT EXISTS automations (
-            id TEXT PRIMARY KEY, name TEXT, prompt TEXT, status TEXT,
-            schedule_type TEXT, rrule TEXT, scheduled_at TEXT, cwds TEXT,
-            skills_json TEXT, connector_ids_json TEXT, owner_user_id TEXT,
-            owner_status TEXT, permission_mode TEXT, model_id TEXT,
-            created_at INTEGER, updated_at INTEGER, deleted_at INTEGER,
-            next_run_at INTEGER)"""
-    )
-    # 仅当使用「自带示例库」(data/automations.db) 且为空时才注入示例；
-    # 真实 WorkBuddy 库即使为空也不注入示例，避免污染活数据。
-    if DB == os.path.join(DATA_DIR, "automations.db"):
-        if con.execute("SELECT COUNT(*) FROM automations").fetchone()[0] == 0:
-            seed_automations(con)
-    con.commit()
-    con.close()
+    # 真实 WorkBuddy 库：仅当已检测到有效家目录且库文件已存在时才打开；
+    # CREATE TABLE IF NOT EXISTS 只补结构，绝不写入任何示例数据，
+    # 也绝不主动新建 WorkBuddy 目录或库文件（避免污染用户数据）。
+    if DB and os.path.exists(DB):
+        con = sqlite3.connect(DB)
+        con.execute(
+            """CREATE TABLE IF NOT EXISTS automations (
+                id TEXT PRIMARY KEY, name TEXT, prompt TEXT, status TEXT,
+                schedule_type TEXT, rrule TEXT, scheduled_at TEXT, cwds TEXT,
+                skills_json TEXT, connector_ids_json TEXT, owner_user_id TEXT,
+                owner_status TEXT, permission_mode TEXT, model_id TEXT,
+                created_at INTEGER, updated_at INTEGER, deleted_at INTEGER,
+                next_run_at INTEGER)"""
+        )
+        con.commit()
+        con.close()
     return DB
 
 
-def seed_automations(con):
-    now = int(datetime.datetime.now().timestamp() * 1000)
-    samples = [
-        ("每日 AI 早报", "每个工作日上午自动整理 AI 领域重要进展，生成简报。",
-         "每日", "已暂停", 9, 0, "MO", 1, None),
-        ("每周复盘", "每周日晚自动汇总本周亮点与待办，生成周报。",
-         "每周", "已暂停", 20, 0, "SU", 1, None),
-        ("每月账单核对", "每月 1 日检查本地财务记录并提醒核对。",
-         "每月", "已暂停", 8, 0, "MO", 1, None),
-    ]
-    for name, prompt, ftype, status, hh, mm, wd, md, sa in samples:
-        st = "ACTIVE" if status == "运行中" else "PAUSED"
-        stype = "once" if ftype == "一次性" else "recurring"
-        rrule = "" if stype == "once" else build_rrule(ftype, hh, mm, wd, md)
-        aid = "automation-seed-" + str(now) + "-" + re.sub(r"\W", "", name)
-        nxt = compute_next_run(rrule, stype, sa)
-        con.execute(
-            "INSERT OR IGNORE INTO automations "
-            "(id,name,prompt,status,schedule_type,rrule,scheduled_at,cwds,skills_json,"
-            "connector_ids_json,owner_user_id,owner_status,permission_mode,model_id,"
-            "created_at,updated_at,deleted_at,next_run_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,?)",
-            (aid, name, prompt, st, stype, rrule, sa,
-             json.dumps(["."], ensure_ascii=False), "[]", "[]",
-             None, "legacy_unassigned", "fullAccess", "auto", now, now, nxt),
-        )
+# 注：真实 WorkBuddy 库绝不写入示例数据（见 init_db）。如需演示数据，见 README「演示模式」。
 
 
 def ensure_git_roots():
@@ -365,6 +420,8 @@ def run_git(cmd):
 
 # ---------------- 采集（带写回 id 与分类） ----------------
 def gather_automations():
+    if not DB:
+        return []
     rows = []
     try:
         con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
@@ -392,6 +449,8 @@ def gather_automations():
 
 
 def gather_memory():
+    if not MEMORY_PATH or not os.path.exists(MEMORY_PATH):
+        return []
     rows = []
     for heading, body in parse_sections(MEMORY_PATH):
         if not body:
@@ -412,6 +471,8 @@ def load_override():
 
 
 def gather_skills():
+    if not SKILLS_DIR:
+        return []
     override = load_override()
     rows = []
     for p in sorted(glob.glob(os.path.join(SKILLS_DIR, "*", "SKILL.md"))):
@@ -679,6 +740,8 @@ def kill_process(pid):
 # ---------------- 写回（真实改写本地文件 / 数据库） ----------------
 def update_automation(aid, field, value):
     """单字段更新（兼容旧调用：名称/状态）。"""
+    if not DB:
+        raise ValueError("未连接 WorkBuddy 数据目录，无法写入定时任务")
     if field == "名称":
         col = "name"
     elif field == "状态":
@@ -763,6 +826,8 @@ def rewrite_md_section(path, heading, new_body):
 
 
 def update_memory(topic, content):
+    if not MEMORY_PATH:
+        raise ValueError("未连接 WorkBuddy 数据目录，无法写入记忆")
     return rewrite_md_section(MEMORY_PATH, topic, content)
 
 
@@ -924,6 +989,8 @@ def add_conversation_memory(ctype, content, category=""):
 def add_automation(name, prompt, ftype="每日", status="运行中", hour=9, minute=0,
                    byday="MO", bymonthday=1, scheduled_at=None):
     """在本地 automations.db 新建一条定时任务。返回 (db_path, new_id)。"""
+    if not DB:
+        raise ValueError("未连接 WorkBuddy 数据目录，无法新建定时任务")
     name = (name or "").strip()
     prompt = (prompt or "").strip()
     if not name:
@@ -1185,6 +1252,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"ok": True, "tokens": git_token_summary()})
         elif parsed.path == "/api/processes":
             self._send(200, {"ok": True, "processes": gather_processes()})
+        elif parsed.path == "/api/wb_status":
+            self._send(200, {"ok": True, "configured": bool(WB_HOME),
+                             "wb_home": WB_HOME, "markers": _wb_markers()})
         else:
             self._send(404, {"error": "not found"})
 
@@ -1265,6 +1335,23 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/restore":
                 original = restore_backup(body.get("file", ""))
                 self._send(200, {"ok": True, "path": original})
+            elif self.path == "/api/wb_home":
+                p = (body.get("path") or "").strip()
+                if not p:
+                    self._send(400, {"ok": False, "error": "路径不能为空"})
+                    return
+                p = os.path.expanduser(p)
+                if not os.path.isdir(p) or not _looks_like_wb_home(p):
+                    self._send(400, {"ok": False, "error": "该目录不是有效的 WorkBuddy 数据目录（需含 workbuddy.db / MEMORY.md / skills/ 之一）"})
+                    return
+                try:
+                    with open(os.path.join(DATA_DIR, "wb_home.txt"), "w", encoding="utf-8") as f:
+                        f.write(p)
+                except Exception as e:
+                    self._send(400, {"ok": False, "error": "保存路径失败：" + str(e)})
+                    return
+                resolve_wb_paths()
+                self._send(200, {"ok": True, "configured": bool(WB_HOME), "wb_home": WB_HOME})
             elif self.path == "/api/tokens":
                 plat = body.get("platform", "")
                 if body.get("op") == "delete":
@@ -1301,7 +1388,11 @@ def find_free_port(start, host="127.0.0.1", max_tries=50):
 
 def main():
     _protect_self()  # 标记自身进程受保护，禁止在工作台内被结束
-    init_db()  # 首次运行自动建库 + 写入示例数据
+    init_db()  # 仅当检测到真实 WorkBuddy 库时打开；绝不写示例数据
+    if not WB_HOME:
+        print("[提示] 未检测到 WorkBuddy 数据目录：启动后请在页面设置中指定路径（不会写入任何示例数据）。")
+    else:
+        print(f"[已连接] WorkBuddy 数据目录：{WB_HOME}")
     port = find_free_port(PORT)
     if port is None:
         print(f"在 {PORT}~{PORT+49} 区间找不到可用端口，请检查是否有程序占满端口后重试。")

@@ -40,7 +40,7 @@ cd ai-workbench
 python server.py
 ```
 
-默认**直接读取你真实的 WorkBuddy 数据**（`~/.workbuddy/workbuddy.db` 的自动化、`~/.workbuddy/MEMORY.md` 的记忆、`~/.workbuddy/skills/` 的技能），所以界面显示的就是你 WorkBuddy 里的真实内容，二者保持一致。仅当使用自带的示例库 `data/automations.db`（无 WorkBuddy 环境 / 纯开源自托管）时才注入示例数据。
+默认**直接读取你真实的 WorkBuddy 数据**（`~/.workbuddy/workbuddy.db` 的自动化、`~/.workbuddy/MEMORY.md` 的记忆、`~/.workbuddy/skills/` 的技能），所以界面显示的就是你 WorkBuddy 里的真实内容，二者保持一致。**首次启动绝不写入任何示例数据**——若检测不到 WorkBuddy 目录，页面会引导你在「设置」中手动指定，全程不新建目录、不建库、不写示例。详见下方「连接 WorkBuddy 数据目录」。
 
 > 默认绑定 `127.0.0.1:8765`；端口被占用时 `server.py` 会自动顺延（8765~8814）。启动后浏览器自动打开，若没打开请手动访问终端打印的地址。用完点页面里的「关闭工作台」即可。
 
@@ -114,7 +114,7 @@ ai-workbench/
 │   ├── v1.5-structure.svg
 │   └── v1.5-activity.svg
 ├── data/                  # ★ 你的全部个人数据都在这里（不上云）
-│   ├── automations.db     # 定时任务（SQLite，首次启动自动建表 + 示例）
+│   ├── automations.db     # （旧）示例库，已弃用；真实定时任务来自 WorkBuddy 的 workbuddy.db
 │   ├── highlights.md      # 每日亮点（Markdown，支持 [分类=xxx]）
 │   ├── conversation_memory.md # 对话记忆（Markdown，支持 [分类=xxx]，首次写入时生成）
 │   ├── categories.json    # 分类索引（首次打分类时生成）
@@ -128,6 +128,22 @@ ai-workbench/
 ├── requirements.txt        # 标准库实现，本文件仅作声明（无需 pip install）
 └── .gitignore
 ```
+
+### 连接 WorkBuddy 数据目录（核心机制）
+
+工作台**只读你本机的 WorkBuddy 真实数据**，且首次启动**绝不写入任何示例数据**。数据目录通过「三重定位」确定：
+
+1. **环境变量 `WORKBUDDY_HOME`（最权威）**：显式指定即一锤定音，适合 WorkBuddy 装在非默认位置 / 便携版 / 非 Windows 平台的用户。
+   ```bash
+   export WORKBUDDY_HOME=/path/to/your/.workbuddy
+   python server.py
+   ```
+2. **上次手动指定（`data/wb_home.txt`）**：在页面「设置」里填过的路径会被记住，下次启动优先于默认探测。
+3. **自动探测 + 标记校验**：依次探测 `~/.workbuddy`、`~/Library/Application Support/WorkBuddy`、`~/.config/workbuddy`、`~/.local/share/workbuddy`，并对每个候选用标记校验——命中 `workbuddy.db`（含 automations 表）/ `MEMORY.md` / `skills/` 任一即视为有效。
+
+> 若三层都没命中：页面不会默默造数据，而是显示**设置页**，请你粘贴 WorkBuddy 目录路径后「保存并连接」。保存仅写入工作台自身的 `data/wb_home.txt`，**不触碰你的 WorkBuddy 目录**（不建目录、不建库、不写示例）。
+
+注：当前 WorkBuddy 未对外暴露统一的数据目录入口，故采用上述探测 + 校验；一旦 WorkBuddy 自身提供 `WORKBUDDY_HOME` 之类的标准变量，本工作台会天然优先采用。
 
 ### 自定义数据目录
 默认数据放在程序同级的 `data/`。可通过环境变量覆盖：
