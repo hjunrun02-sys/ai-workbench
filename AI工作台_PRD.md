@@ -239,9 +239,9 @@ Miki 处于自由职业起步期，三大方向为自媒体（纯图文 / AI 生
 | --- | --- | --- |
 | **MVP**（2026-08） | 本地可编辑工作台：4 分区增 / 改 / 删 / 查 + 搜索 / 筛选 + 自动备份 | 已交付 |
 | v1.1 | M8 定时任务新建；亮点按日期排序与筛选增强；空状态引导文案 | 已交付 |
-| v1.5 | M9 AI 自动亮点捕获；会话结束记忆沉淀；记忆合并去重 | 规划 |
-| v2.0 | M10 跨平台（macOS / Linux）；移动端只读视图；数据导出（Markdown / JSON） | 探索 |
-| v3.0（探索） | 技能市场 / 模板化工作流编排；一键打包分发包（安装器 / 容器镜像）；多语言与主题 | 探索 |
+| v1.5（收口版·开发中） | 内容分类体系 + 分类筛选；Skill 详情查看；对话记忆（第 5 类资产）；本地 Git 仓库管理（扫描/状态/分支/远程 + 本地 fetch/pull/checkout/clone）；定时任务多字段编辑；误删恢复 UI（备份管理 + 一键还原）；数据导出 JSON / 明暗主题 / 跨平台启动脚本；M9 降级为 agent 端沉淀 + 手动速记入口 | 开发中 |
+| v2.0 | **已取消**（用户 2026-08-13 决策：2.0+ 不做）：跨平台/移动端视图、云端同步、技能市场、模板编排、安装器/容器、多语言 | 取消 |
+| v3.0 | **已取消**（同上）：技能市场 / 模板编排 / 一键打包 / 多语言主题 | 取消 |
 
 ---
 
@@ -297,6 +297,23 @@ Miki 处于自由职业起步期，三大方向为自媒体（纯图文 / AI 生
   - **GitHub** 公开仓库：`https://github.com/hjunrun02-sys/ai-workbench`（含 v0.1.0 Release）；
   - **Gitee** 公开镜像：`https://gitee.com/msjr123/ai-workbench`（已设为公开，含 v0.1.0 标签）；
   - 本地配置双远程：`origin` = GitHub，`gitee` = Gitee；后续更新由维护者分别推送两个平台。
+
+### 11.1 v1.5（收口版）开发状态（2026-08-13）
+
+> v1.5 是**收口版**：补齐编辑/检索/数据健康三条线，明确**不纳入 2.0+**（跨平台移动端、云端同步、技能市场、模板编排、安装器/容器、多语言）。详见 §8 路线图。
+
+- **范围边界**：2.0+ 已取消（用户 2026-08-13 决策），v1.5 不做任何云端/跨端能力，坚持 local-first、零依赖、不联网。
+- **本版新增（实现完成、待发布）**：
+  1. **内容分类体系**：6 类资产（定时任务/记忆/Skill/亮点/对话记忆/Git）统一 `[分类=xxx]` 标记 + `categories.json` 索引，前端分类筛选；兼容无分类旧数据（显示「未分类」）。
+  2. **Skill 详情查看**：前端 `查看` 按钮调 `GET /api/skill_content` 展示 SKILL.md 全文，后端做路径穿越防护（限定 `SKILLS_DIR` 内）。
+  3. **对话记忆模块（第 5 类资产）**：`conversation_memory.md`（`CM-` 前缀，格式复用亮点），支持新增/分类/删除。
+  4. **本地 Git 仓库管理**：`gather_git_repos` 深度扫描 + 卡片展示路径/分支/状态/改动数/远程；本地 `fetch/pull/checkout/clone` 子进程操作（clone 目标限定 `git_roots`）。
+  5. **定时任务多字段编辑**：`openEditAutomation` 解析中文频率 → 多字段弹窗；`update_automation_fields` 复用 `build_rrule`/`compute_next_run` 写回 `automations.db`。
+  6. **误删恢复 UI**：`GET /api/backups` 列出 `.bak` + `POST /api/restore` 一键还原（先备份原文件）。
+  7. **数据导出 JSON / 明暗主题 / 跨平台启动脚本**：`exportData` 下载全量 JSON；`toggleTheme` localStorage；新增 `start-workbench.sh`（macOS/Linux）。
+  8. **M9 降级**：AI 自动亮点捕获/记忆沉淀在零依赖开源版不可行（无 AI 内核、不联网），降级为 agent 端沉淀 + 手动速记入口。
+- **已知限制**：本机 `git` CLI 连 GitHub/Gitee 存在 TLS 握手问题，远程 `push/pull` 受限；前端已标注提示改用 GitHub Desktop / Gitee 客户端。
+- **待办（发布闭环）**：出结构图/活动图 → 本地 `git commit` → 双平台（GitHub+Gitee）推送（需重新提供 token，原 token 已弃用）→ 打 `v1.5.0` tag。
 
 ## 12. 附录
 

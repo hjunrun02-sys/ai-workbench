@@ -7,14 +7,21 @@ AI 工作台 —— 本地可编辑服务（飞书表格风格，纯标准库，
   纯静态 HTML（双击打开）在浏览器沙箱里写不了本地文件。要做到
   “编辑并确认改到本地文件”，必须有一个本地后端。本服务只绑定
   127.0.0.1（不暴露到外网），负责：
-    - GET  /              返回飞书表格风格前端 workbench_app.html
-    - GET  /api/data      返回 4 类数据（含写回用的 id）
-    - POST /api/update    修改某条记录，真实改写本地文件 / 数据库
-    - POST /api/update_multi  一次修改多个字段
-    - POST /api/add       新增每日亮点
+    - GET  /                  返回飞书表格风格前端 workbench_app.html
+    - GET  /api/data          返回 5 类数据（定时任务/记忆/Skill/每日亮点/对话记忆）+ Git 仓库 + 计数 + 可筛选维度
+    - POST /api/update        修改某条记录单字段
+    - POST /api/update_multi  一次修改多个字段（含定时任务多字段编辑）
+    - POST /api/update_category  修改某条记录的分类
+    - POST /api/add           新增每日亮点
+    - POST /api/add_cm        新增对话记忆
     - POST /api/add_automation  新建定时任务
-    - POST /api/delete    删除（亮点 / 定时任务 / 记忆小节）
-    - POST /api/shutdown  关闭本地服务
+    - POST /api/delete        删除（亮点/定时任务/记忆小节/对话记忆）
+    - GET  /api/skill_content 读取某 Skill 的 SKILL.md 全文
+    - GET  /api/git_repos     扫描并列出本地 Git 仓库（路径/分支/状态/远程）
+    - POST /api/git_action    Git 基础操作（fetch/pull/checkout/clone）
+    - GET  /api/backups       列出所有 .bak 备份
+    - POST /api/restore       一键还原某个 .bak
+    - POST /api/shutdown      关闭本地服务
 
 数据全部落在 DATA_DIR（默认本程序同级的 ./data，可用环境变量
 AI_WORKBENCH_DATA 覆盖），不上云、不依赖任何第三方运行时。
@@ -23,7 +30,10 @@ AI_WORKBENCH_DATA 覆盖），不上云、不依赖任何第三方运行时。
     定时任务  -> data/automations.db（SQLite，自带建表 + 示例数据）
     记忆      -> data/memory/MEMORY.md 的 ## 小节
     Skill     -> data/skill_override.json（覆盖功能说明）
-    每日亮点  -> data/highlights.md（类型/内容/增删）
+    每日亮点  -> data/highlights.md（类型/分类/内容/增删）
+    对话记忆  -> data/conversation_memory.md（类型/分类/内容/增删）
+    分类      -> data/categories.json（4 类资产统一分类索引）
+    Git 仓库  -> 本地真实 .git 目录（只读扫描 + 本地 git 子进程操作）
 
 每次写前自动生成 .bak 备份，写坏可恢复。
 """
@@ -37,6 +47,7 @@ import sqlite3
 import datetime
 import webbrowser
 import socket
+import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.parse
 
@@ -48,18 +59,54 @@ HIGHLIGHTS_PATH = os.path.join(DATA_DIR, "highlights.md")
 MEMORY_PATH = os.path.join(DATA_DIR, "memory", "MEMORY.md")
 SKILLS_DIR = os.path.join(DATA_DIR, "skills")
 OVERRIDE_PATH = os.path.join(DATA_DIR, "skill_override.json")
+CATEGORIES_PATH = os.path.join(DATA_DIR, "categories.json")
+CONVERSATION_PATH = os.path.join(DATA_DIR, "conversation_memory.md")
+GIT_ROOTS_FILE = os.path.join(DATA_DIR, "git_roots.txt")
 DB = os.path.join(DATA_DIR, "automations.db")
 HTML_PATH = os.path.join(HERE, "workbench_app.html")
 PORT = 8765
 
 VALID_TYPES = ["决策", "学习", "洞察", "任务", "其他"]
+DEFAULT_CATEGORIES = ["自媒体", "电商", "AI技术", "运营", "其他"]
 WEEK_MAP = {"MO": "一", "TU": "二", "WE": "三", "TH": "四", "FR": "五", "SA": "六", "SU": "日"}
+GIT_DEPTH = 4  # 仓库扫描最大递归深度，避免扫全盘过慢
 
 
 # ---------------- 备份 ----------------
 def backup(path):
     if os.path.exists(path):
         shutil.copy2(path, path + ".bak")
+
+
+# ---------------- 分类（统一索引） ----------------
+def load_categories():
+    if os.path.exists(CATEGORIES_PATH):
+        try:
+            return json.load(open(CATEGORIES_PATH, encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def save_categories(d):
+    backup(CATEGORIES_PATH)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    json.dump(d, open(CATEGORIES_PATH, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+
+
+def category_of(section, rid):
+    return load_categories().get(section, {}).get(rid, "")
+
+
+def update_category(section, rid, category):
+    d = load_categories()
+    d.setdefault(section, {})
+    if category:
+        d[section][rid] = category
+    else:
+        d[section].pop(rid, None)
+    save_categories(d)
+    return CATEGORIES_PATH
 
 
 # ---------------- 自包含的展示/解析原语（不再依赖 sync.py） ----------------
@@ -149,6 +196,16 @@ def parse_skill(path, position):
     return name, desc, position, path
 
 
+def get_skill_content(path):
+    """读取 SKILL.md 全文，供前端「查看具体内容」展示。"""
+    if not os.path.isfile(path):
+        return None
+    # 防止越权读取仓库外文件
+    if os.path.commonpath([os.path.abspath(path), os.path.abspath(SKILLS_DIR)]) != os.path.abspath(SKILLS_DIR):
+        return None
+    return open(path, encoding="utf-8").read()
+
+
 # ---------------- 数据库：建表 + 示例数据 ----------------
 def build_rrule(ftype, hour, minute, byday="MO", bymonthday=1):
     hh, mm = int(hour), int(minute)
@@ -217,6 +274,7 @@ def init_db():
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(os.path.dirname(MEMORY_PATH), exist_ok=True)
     os.makedirs(SKILLS_DIR, exist_ok=True)
+    ensure_git_roots()
     con = sqlite3.connect(DB)
     con.execute(
         """CREATE TABLE IF NOT EXISTS automations (
@@ -262,7 +320,41 @@ def seed_automations(con):
         )
 
 
-# ---------------- 采集（带写回 id） ----------------
+def ensure_git_roots():
+    if not os.path.exists(GIT_ROOTS_FILE):
+        defaults = [
+            os.path.join(os.path.expanduser("~"), "repos"),
+            os.path.join(os.path.expanduser("~"), "projects"),
+            os.path.dirname(HERE),
+        ]
+        with open(GIT_ROOTS_FILE, "w", encoding="utf-8") as f:
+            f.write("# 每行一个本地仓库根目录（扫描其下的 .git 仓库）\n")
+            for d in defaults:
+                f.write(d.replace("\\", "/") + "\n")
+
+
+def load_git_roots():
+    if not os.path.exists(GIT_ROOTS_FILE):
+        return []
+    out = []
+    for ln in open(GIT_ROOTS_FILE, encoding="utf-8").read().splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#"):
+            continue
+        out.append(ln)
+    return out
+
+
+def run_git(cmd):
+    """调本地 git 子进程，返回 {ok,out,err,code}。"""
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=25, shell=False)
+        return {"ok": r.returncode == 0, "out": r.stdout, "err": r.stderr, "code": r.returncode}
+    except Exception as e:
+        return {"ok": False, "out": "", "err": str(e), "code": -1}
+
+
+# ---------------- 采集（带写回 id 与分类） ----------------
 def gather_automations():
     rows = []
     try:
@@ -281,6 +373,8 @@ def gather_automations():
                 "频率": rrule_to_cn(r["rrule"], r["schedule_type"], r["scheduled_at"]),
                 "状态": "运行中" if (r["status"] or "").upper() == "ACTIVE" else "已暂停",
                 "下次运行": fmt_ts(r["next_run_at"]),
+                "说明全文": r["prompt"],
+                "分类": category_of("automations", r["id"]),
             })
         con.close()
     except Exception as e:
@@ -294,7 +388,8 @@ def gather_memory():
         if not body:
             continue
         rows.append({"id": heading, "主题": heading, "内容": body[:1500],
-                     "来源": os.path.relpath(MEMORY_PATH, DATA_DIR)})
+                     "来源": os.path.relpath(MEMORY_PATH, DATA_DIR),
+                     "分类": category_of("memory", heading)})
     return rows
 
 
@@ -314,7 +409,8 @@ def gather_skills():
         try:
             name, desc, pos, path = parse_skill(p, "本地")
             cn = override.get(name) or desc or "（无说明）"
-            rows.append({"id": path, "名称": name, "功能说明": cn, "位置": pos, "路径": path})
+            rows.append({"id": path, "名称": name, "功能说明": cn, "位置": pos,
+                         "路径": path, "分类": category_of("skills", name)})
         except Exception as e:
             print(f"[warn] 解析 skill 失败 {p}: {e}")
     return rows
@@ -324,17 +420,80 @@ def gather_highlights():
     if not os.path.exists(HIGHLIGHTS_PATH):
         return []
     rows = []
+    pat = re.compile(r"^\s*-\s*\[id=(\S+)\]\s*\[(\S+)\]\s*(?:\[分类=([^\]]*)\]\s*)?(.*)$")
     for ln in open(HIGHLIGHTS_PATH, encoding="utf-8").read().splitlines():
-        m = re.match(r"^\s*-\s*\[id=(\S+)\]\s*\[(\S+)\]\s*(.*)$", ln)
+        m = pat.match(ln)
         if not m:
             continue
-        hid, htype, content = m.group(1), m.group(2), m.group(3).strip()
+        hid, htype, hcat, content = m.group(1), m.group(2), m.group(3) or "", m.group(4).strip()
         if htype not in VALID_TYPES:
             htype = "其他"
         dm = re.match(r"HL-(\d{4})(\d{2})(\d{2})", hid)
         date = f"{dm.group(1)}-{dm.group(2)}-{dm.group(3)}" if dm else ""
-        rows.append({"id": hid, "亮点ID": hid, "日期": date, "类型": htype, "内容": content[:1500]})
+        rows.append({"id": hid, "亮点ID": hid, "日期": date, "类型": htype,
+                     "分类": hcat, "内容": content[:1500]})
     return rows
+
+
+def gather_conversation_memory():
+    if not os.path.exists(CONVERSATION_PATH):
+        return []
+    rows = []
+    pat = re.compile(r"^\s*-\s*\[id=(\S+)\]\s*\[(\S+)\]\s*(?:\[分类=([^\]]*)\]\s*)?(.*)$")
+    for ln in open(CONVERSATION_PATH, encoding="utf-8").read().splitlines():
+        m = pat.match(ln)
+        if not m:
+            continue
+        cid, ctype, ccat, content = m.group(1), m.group(2), m.group(3) or "", m.group(4).strip()
+        if ctype not in VALID_TYPES:
+            ctype = "其他"
+        dm = re.match(r"CM-(\d{4})(\d{2})(\d{2})", cid)
+        date = f"{dm.group(1)}-{dm.group(2)}-{dm.group(3)}" if dm else ""
+        rows.append({"id": cid, "ID": cid, "日期": date, "类型": ctype,
+                     "分类": ccat, "内容": content[:1500]})
+    return rows
+
+
+def gather_git_repos():
+    """扫描 git_roots 下所有 .git 仓库（限制深度），返回只读信息。"""
+    repos = []
+    for root in load_git_roots():
+        root = os.path.expanduser(root)
+        if not os.path.isdir(root):
+            continue
+        root = os.path.abspath(root)
+        for dirpath, dirnames, filenames in os.walk(root):
+            depth = dirpath[len(root):].count(os.sep)
+            if depth > GIT_DEPTH:
+                dirnames[:] = []
+                continue
+            if ".git" in dirnames:
+                info = describe_git(dirpath)
+                if info:
+                    repos.append(info)
+                dirnames[:] = []  # 仓库内部不再向下扫
+    return repos
+
+
+def describe_git(repo):
+    try:
+        branch = run_git(["git", "-C", repo, "branch", "--show-current"]).get("out", "").strip()
+        st = run_git(["git", "-C", repo, "status", "--porcelain"])
+        changes = len([l for l in st.get("out", "").splitlines() if l.strip()])
+        remotes = parse_remotes(run_git(["git", "-C", repo, "remote", "-v"]).get("out", ""))
+        return {"id": repo, "路径": repo, "分支": branch or "(分离头指针)",
+                "状态": "有改动" if changes else "干净", "改动数": changes, "远程": remotes}
+    except Exception:
+        return None
+
+
+def parse_remotes(text):
+    out = []
+    for ln in text.splitlines():
+        m = re.match(r"^(\S+)\s+(\S+)\s+\((\S+)\)$", ln.strip())
+        if m:
+            out.append({"name": m.group(1), "url": m.group(2), "type": m.group(3)})
+    return out
 
 
 def collect():
@@ -343,35 +502,84 @@ def collect():
         "memory": gather_memory(),
         "skills": gather_skills(),
         "highlights": gather_highlights(),
+        "conversation_memory": gather_conversation_memory(),
+        "git_repos": gather_git_repos(),
     }
 
 
 def compute_filters(data):
     return {
         "automations": [{"field": "状态", "label": "状态",
-                         "values": sorted({it.get("状态", "") for it in data["automations"] if it.get("状态")})}],
+                         "values": sorted({it.get("状态", "") for it in data["automations"] if it.get("状态")})},
+                        {"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES}],
+        "memory": [{"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES}],
         "skills": [{"field": "位置", "label": "位置",
-                    "values": sorted({it.get("位置", "") for it in data["skills"] if it.get("位置")})}],
+                    "values": sorted({it.get("位置", "") for it in data["skills"] if it.get("位置")})},
+                   {"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES}],
         "highlights": [{"field": "类型", "label": "类型",
                         "values": [t for t in VALID_TYPES if t in {it.get("类型", "") for it in data["highlights"]}]},
+                       {"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES},
                        {"field": "__date_range__", "label": "日期范围", "values": ["近7天", "近30天"]}],
-        "memory": [],
+        "conversation_memory": [{"field": "类型", "label": "类型",
+                                 "values": [t for t in VALID_TYPES if t in {it.get("类型", "") for it in data["conversation_memory"]}]},
+                                {"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES}],
+        "git_repos": [{"field": "状态", "label": "状态", "values": ["有改动", "干净"]}],
     }
 
 
 # ---------------- 写回（真实改写本地文件 / 数据库） ----------------
 def update_automation(aid, field, value):
+    """单字段更新（兼容旧调用：名称/状态）。"""
     if field == "名称":
         col = "name"
     elif field == "状态":
         col = "status"
         value = "ACTIVE" if value == "运行中" else "PAUSED"
     else:
-        raise ValueError(f"定时任务不支持修改字段：{field}")
+        raise ValueError(f"定时任务不支持单字段修改：{field}（请用多字段编辑）")
     backup(DB)
     con = sqlite3.connect(DB)
     con.execute(f"UPDATE automations SET {col}=?, updated_at=? WHERE id=?",
                 (value, int(datetime.datetime.now().timestamp() * 1000), aid))
+    con.commit()
+    con.close()
+    return DB
+
+
+def update_automation_fields(aid, fields):
+    """多字段更新（R1：名称/状态/频率/说明 一起改）。"""
+    sets, params = [], []
+    now = int(datetime.datetime.now().timestamp() * 1000)
+    if "名称" in fields:
+        sets.append("name=?"); params.append(fields["名称"])
+    if "状态" in fields:
+        sets.append("status=?"); params.append("ACTIVE" if fields["状态"] == "运行中" else "PAUSED")
+    if "说明" in fields:
+        sets.append("prompt=?"); params.append(fields["说明"])
+    ftype = fields.get("频率类型")
+    if ftype:
+        if ftype == "一次性":
+            scheduled_at = fields.get("执行时间")
+            sets.append("schedule_type=?"); params.append("once")
+            sets.append("rrule=?"); params.append("")
+            sets.append("scheduled_at=?"); params.append(scheduled_at)
+            nxt = compute_next_run("", "once", scheduled_at)
+        else:
+            hh = int(fields.get("小时", 9)); mm = int(fields.get("分钟", 0))
+            byday = fields.get("星期", "MO"); md = int(fields.get("每月几号", 1))
+            rrule = build_rrule(ftype, hh, mm, byday, md)
+            sets.append("schedule_type=?"); params.append("recurring")
+            sets.append("rrule=?"); params.append(rrule)
+            sets.append("scheduled_at=?"); params.append(None)
+            nxt = compute_next_run(rrule, "recurring", None)
+        sets.append("next_run_at=?"); params.append(nxt)
+    if not sets:
+        raise ValueError("没有可更新的字段")
+    sets.append("updated_at=?"); params.append(now)
+    params.append(aid)
+    backup(DB)
+    con = sqlite3.connect(DB)
+    con.execute(f"UPDATE automations SET {','.join(sets)} WHERE id=?", params)
     con.commit()
     con.close()
     return DB
@@ -422,19 +630,41 @@ def update_skill(path, value):
 def update_highlight_line(hid, field, value):
     backup(HIGHLIGHTS_PATH)
     out, changed = [], False
-    pat = re.compile(r"^(\s*-\s*\[id=" + re.escape(hid) + r"\]\s*\[)(\S+)(\]\s*)(.*)$")
+    pat = re.compile(r"^(\s*-\s*\[id=" + re.escape(hid) + r"\]\s*\[)(\S+)(\](?:\s*\[分类=[^\]]*\])?)(\s*)(.*)$")
     for ln in open(HIGHLIGHTS_PATH, encoding="utf-8").read().split("\n"):
         m = pat.match(ln)
         if m:
             if field == "类型":
-                ln = m.group(1) + value + m.group(3) + m.group(4)
+                ln = m.group(1) + value + m.group(3) + m.group(4) + m.group(5)
+            elif field == "分类":
+                ln = m.group(1) + m.group(2) + (f"] [分类={value}]" if value else "]") + m.group(4) + m.group(5)
             elif field == "内容":
-                ln = m.group(1) + m.group(2) + m.group(3) + value
+                ln = m.group(1) + m.group(2) + m.group(3) + m.group(4) + value
             changed = True
         out.append(ln)
     if changed:
         open(HIGHLIGHTS_PATH, "w", encoding="utf-8").write("\n".join(out))
     return HIGHLIGHTS_PATH, changed
+
+
+def update_conversation_line(cid, field, value):
+    backup(CONVERSATION_PATH)
+    out, changed = [], False
+    pat = re.compile(r"^(\s*-\s*\[id=" + re.escape(cid) + r"\]\s*\[)(\S+)(\](?:\s*\[分类=[^\]]*\])?)(\s*)(.*)$")
+    for ln in open(CONVERSATION_PATH, encoding="utf-8").read().split("\n"):
+        m = pat.match(ln)
+        if m:
+            if field == "类型":
+                ln = m.group(1) + value + m.group(3) + m.group(4) + m.group(5)
+            elif field == "分类":
+                ln = m.group(1) + m.group(2) + (f"] [分类={value}]" if value else "]") + m.group(4) + m.group(5)
+            elif field == "内容":
+                ln = m.group(1) + m.group(2) + m.group(3) + m.group(4) + value
+            changed = True
+        out.append(ln)
+    if changed:
+        open(CONVERSATION_PATH, "w", encoding="utf-8").write("\n".join(out))
+    return CONVERSATION_PATH, changed
 
 
 def delete_highlight_line(hid):
@@ -443,6 +673,14 @@ def delete_highlight_line(hid):
     out = [ln for ln in open(HIGHLIGHTS_PATH, encoding="utf-8").read().split("\n") if not pat.match(ln)]
     open(HIGHLIGHTS_PATH, "w", encoding="utf-8").write("\n".join(out))
     return HIGHLIGHTS_PATH
+
+
+def delete_conversation_line(cid):
+    backup(CONVERSATION_PATH)
+    pat = re.compile(r"^\s*-\s*\[id=" + re.escape(cid) + r"\]")
+    out = [ln for ln in open(CONVERSATION_PATH, encoding="utf-8").read().split("\n") if not pat.match(ln)]
+    open(CONVERSATION_PATH, "w", encoding="utf-8").write("\n".join(out))
+    return CONVERSATION_PATH
 
 
 def delete_automation(aid):
@@ -485,7 +723,8 @@ def apply_updates(sec, rid, values):
     last = None
     for field, value in values.items():
         if sec == "automations":
-            last = update_automation(rid, field, value)
+            last = update_automation_fields(rid, values)  # 多字段一次处理
+            break
         elif sec == "memory":
             if field != "内容":
                 continue
@@ -495,25 +734,42 @@ def apply_updates(sec, rid, values):
                 continue
             last = update_skill(rid, value)
         elif sec == "highlights":
-            if field not in ("类型", "内容"):
+            if field not in ("类型", "内容", "分类"):
                 continue
             last, _ = update_highlight_line(rid, field, value)
+        elif sec == "conversation_memory":
+            if field not in ("类型", "内容", "分类"):
+                continue
+            last, _ = update_conversation_line(rid, field, value)
     if last is None:
         raise ValueError("没有可更新的字段")
     return last
 
 
-def add_highlight(htype, content):
+def add_highlight(htype, content, category=""):
     if htype not in VALID_TYPES:
         htype = "其他"
     now = datetime.datetime.now()
     hid = "HL-" + now.strftime("%Y%m%d-%H%M-") + "%03d" % (now.microsecond // 1000)
-    line = f"- [id={hid}] [{htype}] {content}"
+    line = f"- [id={hid}] [{htype}]" + (f" [分类={category}]" if category else "") + f" {content}"
     backup(HIGHLIGHTS_PATH)
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(HIGHLIGHTS_PATH, "a", encoding="utf-8") as f:
-        f.write(("" if os.path.exists(HIGHLIGHTS_PATH) and os.path.getsize(HIGHLIGHTS_PATH) > 0 else "") + line + "\n")
+        f.write(line + "\n")
     return HIGHLIGHTS_PATH, hid
+
+
+def add_conversation_memory(ctype, content, category=""):
+    if ctype not in VALID_TYPES:
+        ctype = "其他"
+    now = datetime.datetime.now()
+    cid = "CM-" + now.strftime("%Y%m%d-%H%M-") + "%03d" % (now.microsecond // 1000)
+    line = f"- [id={cid}] [{ctype}]" + (f" [分类={category}]" if category else "") + f" {content}"
+    backup(CONVERSATION_PATH)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(CONVERSATION_PATH, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    return CONVERSATION_PATH, cid
 
 
 def add_automation(name, prompt, ftype="每日", status="运行中", hour=9, minute=0,
@@ -549,6 +805,72 @@ def add_automation(name, prompt, ftype="每日", status="运行中", hour=9, min
     return DB, aid
 
 
+# ---------------- Git 操作 ----------------
+def safe_clone_dest(dest):
+    dest = os.path.abspath(os.path.expanduser(dest))
+    for root in load_git_roots():
+        root = os.path.abspath(os.path.expanduser(root))
+        try:
+            if os.path.commonpath([dest, root]) == root:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def git_action(body):
+    action = body.get("action")
+    path = body.get("path")
+    if action == "fetch":
+        res = run_git(["git", "-C", path, "fetch", "--all"])
+    elif action == "pull":
+        res = run_git(["git", "-C", path, "pull"])
+    elif action == "checkout":
+        res = run_git(["git", "-C", path, "checkout", body.get("branch", "")])
+    elif action == "clone":
+        url = body.get("url", "")
+        dest = os.path.expanduser(body.get("dest", ""))
+        if not url or not dest:
+            raise ValueError("clone 需要 url 与 dest")
+        if not safe_clone_dest(dest):
+            raise ValueError("目标路径不在允许的仓库根内（见 data/git_roots.txt）")
+        res = run_git(["git", "clone", url, dest])
+    else:
+        raise ValueError("未知操作：" + str(action))
+    return res
+
+
+# ---------------- 备份管理（R11 误删恢复） ----------------
+def list_backups():
+    out = []
+    for dirpath, _, filenames in os.walk(DATA_DIR):
+        for fn in filenames:
+            if fn.endswith(".bak"):
+                p = os.path.join(dirpath, fn)
+                st = os.stat(p)
+                out.append({
+                    "file": os.path.relpath(p, DATA_DIR),
+                    "original": os.path.relpath(p[:-4], DATA_DIR),
+                    "mtime": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                    "size": st.st_size,
+                })
+    out.sort(key=lambda x: x["mtime"], reverse=True)
+    return out
+
+
+def restore_backup(file):
+    """把 .bak 还原回原文件（file 必须在 DATA_DIR 内且以 .bak 结尾）。"""
+    p = os.path.abspath(os.path.join(DATA_DIR, file))
+    if not p.startswith(os.path.abspath(DATA_DIR)):
+        raise ValueError("非法路径")
+    if not p.endswith(".bak") or not os.path.exists(p):
+        raise ValueError("找不到该备份文件")
+    original = p[:-4]
+    backup(original)  # 先备份当前原文件，避免覆盖丢失
+    shutil.copy2(p, original)
+    return original
+
+
 # ---------------- HTTP 处理 ----------------
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -566,16 +888,29 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(obj, ensure_ascii=False).encode("utf-8"))
 
     def do_GET(self):
-        if self.path == "/" or self.path == "/index.html":
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path in ("/", "/index.html"):
             if os.path.exists(HTML_PATH):
                 self._send(200, html=open(HTML_PATH, encoding="utf-8").read())
             else:
                 self._send(404, {"error": "找不到 workbench_app.html"})
-        elif self.path == "/api/data":
+        elif parsed.path == "/api/data":
             data = collect()
             self._send(200, {"ok": True, "data": data,
                              "counts": {k: len(v) for k, v in data.items()},
                              "filters": compute_filters(data)})
+        elif parsed.path == "/api/skill_content":
+            q = urllib.parse.parse_qs(parsed.query)
+            path = q.get("path", [""])[0]
+            content = get_skill_content(path)
+            if content is None:
+                self._send(404, {"ok": False, "error": "找不到该 Skill 文件"})
+            else:
+                self._send(200, {"ok": True, "content": content, "path": path})
+        elif parsed.path == "/api/git_repos":
+            self._send(200, {"ok": True, "repos": gather_git_repos()})
+        elif parsed.path == "/api/backups":
+            self._send(200, {"ok": True, "backups": list_backups()})
         else:
             self._send(404, {"error": "not found"})
 
@@ -599,6 +934,10 @@ class Handler(BaseHTTPRequestHandler):
                     if field not in ("类型", "内容"):
                         raise ValueError("每日亮点仅支持修改类型/内容")
                     path, _ = update_highlight_line(rid, field, value)
+                elif sec == "conversation_memory":
+                    if field not in ("类型", "内容"):
+                        raise ValueError("对话记忆仅支持修改类型/内容")
+                    path, _ = update_conversation_line(rid, field, value)
                 else:
                     raise ValueError("未知数据区")
                 self._send(200, {"ok": True, "path": path})
@@ -606,12 +945,24 @@ class Handler(BaseHTTPRequestHandler):
                 sec, rid, values = body["section"], body["id"], body.get("values", {})
                 path = apply_updates(sec, rid, values)
                 self._send(200, {"ok": True, "path": path})
+            elif self.path == "/api/update_category":
+                sec, rid, category = body["section"], body["id"], body.get("category", "")
+                path = update_category(sec, rid, category)
+                self._send(200, {"ok": True, "path": path})
             elif self.path == "/api/add":
                 htype, content = body.get("type", "其他"), body.get("content", "").strip()
+                category = body.get("category", "")
                 if not content:
                     raise ValueError("内容不能为空")
-                path, hid = add_highlight(htype, content)
+                path, hid = add_highlight(htype, content, category)
                 self._send(200, {"ok": True, "path": path, "id": hid})
+            elif self.path == "/api/add_cm":
+                ctype, content = body.get("type", "其他"), body.get("content", "").strip()
+                category = body.get("category", "")
+                if not content:
+                    raise ValueError("内容不能为空")
+                path, cid = add_conversation_memory(ctype, content, category)
+                self._send(200, {"ok": True, "path": path, "id": cid})
             elif self.path == "/api/add_automation":
                 b = body
                 path, aid = add_automation(
@@ -623,6 +974,8 @@ class Handler(BaseHTTPRequestHandler):
                 sec, rid = body["section"], body["id"]
                 if sec == "highlights":
                     path = delete_highlight_line(rid)
+                elif sec == "conversation_memory":
+                    path = delete_conversation_line(rid)
                 elif sec == "automations":
                     path = delete_automation(rid)
                 elif sec == "memory":
@@ -632,6 +985,12 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     raise ValueError("未知数据区")
                 self._send(200, {"ok": True, "path": path})
+            elif self.path == "/api/git_action":
+                res = git_action(body)
+                self._send(200, {"ok": res["ok"], "out": res["out"], "err": res["err"], "code": res["code"]})
+            elif self.path == "/api/restore":
+                original = restore_backup(body.get("file", ""))
+                self._send(200, {"ok": True, "path": original})
             elif self.path == "/api/shutdown":
                 self._send(200, {"ok": True})
                 os._exit(0)

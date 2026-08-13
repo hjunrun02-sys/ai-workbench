@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 660" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="arw" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <style>
+      .wt { fill:#fff; font-size:13px; font-weight:700; }
+      .wr { fill:#e2e8f0; font-size:11px; }
+      .dt { fill:#78350f; font-size:13px; font-weight:700; }
+      .lt { fill:#334155; font-size:12px; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="900" height="660" fill="#f8fafc"/>
+  <text x="30" y="30" class="lt" font-size="18" font-weight="800" fill="#0f172a">AI 工作台 v1.5 · 运行活动图（请求 → 采集 → 交互 → 落盘）</text>
+
+  <!-- buses (drawn first, behind boxes) -->
+  <line x1="340" y1="412" x2="520" y2="412" stroke="#475569" stroke-width="2" marker-end="url(#arw)"/>
+  <line x1="520" y1="140" x2="520" y2="493" stroke="#475569" stroke-width="2"/>
+  <line x1="710" y1="186" x2="710" y2="580" stroke="#475569" stroke-width="2"/>
+  <line x1="520" y1="140" x2="540" y2="140" stroke="#475569" stroke-width="2"/>
+  <line x1="520" y1="206" x2="540" y2="206" stroke="#475569" stroke-width="2"/>
+  <line x1="520" y1="272" x2="540" y2="272" stroke="#475569" stroke-width="2"/>
+  <line x1="520" y1="338" x2="540" y2="338" stroke="#475569" stroke-width="2"/>
+  <line x1="520" y1="404" x2="540" y2="404" stroke="#475569" stroke-width="2"/>
+  <line x1="520" y1="470" x2="540" y2="470" stroke="#475569" stroke-width="2"/>
+
+  <!-- left column: start chain -->
+  <rect x="140" y="40" width="240" height="40" rx="20" fill="#16a34a"/>
+  <text x="260" y="65" text-anchor="middle" class="wt">启动 server.py</text>
+  <line x1="260" y1="80" x2="260" y2="102" stroke="#475569" stroke-width="2" marker-end="url(#arw)"/>
+
+  <rect x="130" y="102" width="260" height="54" rx="8" fill="#2563eb"/>
+  <text x="260" y="124" text-anchor="middle" class="wt">加载 data/ 与各资产源</text>
+  <text x="260" y="143" text-anchor="middle" class="wr">categories.json / automations.db / *.md / skills</text>
+  <line x1="260" y1="156" x2="260" y2="178" stroke="#475569" stroke-width="2" marker-end="url(#arw)"/>
+
+  <rect x="140" y="178" width="240" height="40" rx="6" fill="#0891b2"/>
+  <text x="260" y="203" text-anchor="middle" class="wt">前端 GET /api/collect</text>
+  <line x1="260" y1="218" x2="260" y2="242" stroke="#475569" stroke-width="2" marker-end="url(#arw)"/>
+
+  <rect x="120" y="242" width="280" height="40" rx="8" fill="#2563eb"/>
+  <text x="260" y="267" text-anchor="middle" class="wt">gather_* ×6 采集 6 类资产</text>
+  <line x1="260" y1="282" x2="260" y2="306" stroke="#475569" stroke-width="2" marker-end="url(#arw)"/>
+
+  <rect x="140" y="306" width="240" height="40" rx="6" fill="#0891b2"/>
+  <text x="260" y="331" text-anchor="middle" class="wt">返回 JSON → 渲染 6 Tab</text>
+  <line x1="260" y1="346" x2="260" y2="368" stroke="#475569" stroke-width="2" marker-end="url(#arw)"/>
+
+  <!-- decision diamond -->
+  <polygon points="260,368 340,412 260,456 180,412" fill="#f59e0b" stroke="#b45309" stroke-width="2"/>
+  <text x="260" y="416" text-anchor="middle" class="dt">用户交互?</text>
+
+  <!-- right column: 6 branch boxes -->
+  <rect x="540" y="140" width="340" height="46" rx="8" fill="#0d9488"/>
+  <text x="558" y="161" class="wt">① 分类筛选</text>
+  <text x="558" y="178" class="wr">badge → POST /api/update_category → categories.json</text>
+
+  <rect x="540" y="206" width="340" height="46" rx="8" fill="#0d9488"/>
+  <text x="558" y="227" class="wt">② Skill 查看</text>
+  <text x="558" y="244" class="wr">查看 → GET /api/skill_content → SKILL.md 全文（越权防护）</text>
+
+  <rect x="540" y="272" width="340" height="46" rx="8" fill="#0d9488"/>
+  <text x="558" y="293" class="wt">③ 对话记忆增删</text>
+  <text x="558" y="310" class="wr">POST /api/add_cm · del → conversation_memory.md</text>
+
+  <rect x="540" y="338" width="340" height="46" rx="8" fill="#0d9488"/>
+  <text x="558" y="359" class="wt">④ Git 仓库管理</text>
+  <text x="558" y="376" class="wr">GET /api/git_repos + POST /api/git_action → run_git</text>
+
+  <rect x="540" y="404" width="340" height="46" rx="8" fill="#0d9488"/>
+  <text x="558" y="425" class="wt">⑤ 定时任务多字段编辑</text>
+  <text x="558" y="442" class="wr">POST /api/update_multi → update_automation_fields → db</text>
+
+  <rect x="540" y="470" width="340" height="46" rx="8" fill="#0d9488"/>
+  <text x="558" y="491" class="wt">⑥ 备份恢复 / 导出 / 主题</text>
+  <text x="558" y="508" class="wr">POST /api/restore / exportData / toggleTheme</text>
+
+  <!-- converge: persist -->
+  <rect x="120" y="580" width="640" height="48" rx="10" fill="#7c3aed"/>
+  <text x="440" y="602" text-anchor="middle" class="wt">落盘写回源文件（categories.json / *.md / automations.db）</text>
+  <text x="440" y="619" text-anchor="middle" class="wr">刷新采集 → 回到前端渲染（循环）</text>
+
+  <!-- loop arrow -->
+  <path d="M120,604 C 50,604 50,203 140,203" fill="none" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arw)"/>
+  <text x="40" y="410" class="lt" fill="#7c3aed" font-size="11" transform="rotate(-90 40 410)">循环</text>
+</svg>

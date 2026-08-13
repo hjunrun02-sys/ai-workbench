@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 660" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <style>
+      .t { fill:#fff; font-size:14px; font-weight:700; }
+      .r { fill:#e2e8f0; font-size:11px; }
+      .lbl { fill:#334155; font-size:12px; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="900" height="660" fill="#f8fafc"/>
+  <text x="30" y="32" class="lbl" font-size="18" font-weight="800" fill="#0f172a">AI 工作台 v1.5 · 项目结构（local-first / 零依赖）</text>
+  <text x="30" y="52" class="lbl" fill="#64748b">纯 Python 标准库后端 + 单页前端，数据落本地 data/，不联网、不依赖 WorkBuddy 运行时</text>
+
+  <!-- trunk -->
+  <line x1="78" y1="92" x2="78" y2="612" stroke="#cbd5e1" stroke-width="2"/>
+
+  <!-- root -->
+  <rect x="48" y="68" width="320" height="38" rx="8" fill="#2563eb"/>
+  <text x="64" y="92" class="t">ai-workbench/</text>
+
+  <!-- A server.py -->
+  <line x1="78" y1="106" x2="110" y2="106" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="110" y="86" width="470" height="42" rx="8" fill="#16a34a"/>
+  <text x="124" y="106" class="t">server.py</text>
+  <text x="124" y="122" class="r">后端：6 类资产采集 + 分类/Skill/Git/对话记忆/备份 API（纯标准库）</text>
+
+  <!-- B workbench_app.html -->
+  <line x1="78" y1="148" x2="110" y2="148" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="110" y="128" width="470" height="42" rx="8" fill="#db2777"/>
+  <text x="124" y="148" class="t">workbench_app.html</text>
+  <text x="124" y="164" class="r">前端单页：6 Tab + 分类筛选 / 明暗主题 / JSON 导出</text>
+
+  <!-- C start-workbench.sh -->
+  <line x1="78" y1="190" x2="110" y2="190" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="110" y="170" width="470" height="42" rx="8" fill="#d97706"/>
+  <text x="124" y="190" class="t">start-workbench.sh</text>
+  <text x="124" y="206" class="r">macOS/Linux 启动脚本（跨平台）；Windows 用 start-workbench.bat</text>
+
+  <!-- D data/ group header -->
+  <line x1="78" y1="232" x2="110" y2="232" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="110" y="212" width="470" height="42" rx="8" fill="#7c3aed"/>
+  <text x="124" y="232" class="t">data/</text>
+  <text x="124" y="248" class="r">本地数据目录（不入库，AI_WORKBENCH_DATA 可覆盖）</text>
+
+  <!-- data sub-branch -->
+  <line x1="130" y1="254" x2="130" y2="430" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- D1 -->
+  <line x1="130" y1="274" x2="160" y2="274" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="160" y="258" width="520" height="34" rx="6" fill="#9333ea" opacity="0.85"/>
+  <text x="174" y="279" class="r" fill="#fff" font-size="12">automations.db — 定时任务 SQLite（首次启动自建 + 示例数据）</text>
+  <!-- D2 -->
+  <line x1="130" y1="316" x2="160" y2="316" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="160" y="300" width="520" height="34" rx="6" fill="#9333ea" opacity="0.85"/>
+  <text x="174" y="321" class="r" fill="#fff" font-size="12">memory.md · highlights.md — 全局记忆 / 每日亮点</text>
+  <!-- D3 -->
+  <line x1="130" y1="358" x2="160" y2="358" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="160" y="342" width="520" height="34" rx="6" fill="#9333ea" opacity="0.85"/>
+  <text x="174" y="363" class="r" fill="#fff" font-size="12">conversation_memory.md — 对话记忆（第 5 类资产，CM- 前缀）</text>
+  <!-- D4 -->
+  <line x1="130" y1="400" x2="160" y2="400" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="160" y="384" width="520" height="34" rx="6" fill="#9333ea" opacity="0.85"/>
+  <text x="174" y="405" class="r" fill="#fff" font-size="12">categories.json — 统一分类索引（兼容无分类旧数据）</text>
+
+  <!-- E skills/ -->
+  <line x1="78" y1="274" x2="110" y2="274" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="110" y="426" width="470" height="42" rx="8" fill="#0891b2"/>
+  <text x="124" y="446" class="t">skills/</text>
+  <text x="124" y="462" class="r">读取全局或项目 Skill 目录（路径穿越防护，限定 SKILLS_DIR 内）</text>
+
+  <!-- F docs/ -->
+  <line x1="78" y1="488" x2="110" y2="488" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="110" y="468" width="470" height="42" rx="8" fill="#64748b"/>
+  <text x="124" y="488" class="t">docs/</text>
+  <text x="124" y="504" class="r">v1.5 结构图 / 活动图（本文件所在目录）</text>
+
+  <!-- G meta files -->
+  <line x1="78" y1="530" x2="110" y2="530" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="110" y="510" width="470" height="42" rx="8" fill="#475569"/>
+  <text x="124" y="530" class="t">README · LICENSE · requirements.txt · .gitignore</text>
+  <text x="124" y="546" class="r">开源发布件；.gitignore 排除 .workbuddy/、data/*.db、*.bak</text>
+
+  <!-- legend -->
+  <rect x="640" y="86" width="240" height="150" rx="10" fill="#fff" stroke="#e2e8f0"/>
+  <text x="656" y="108" class="lbl" font-weight="700">资产分类（6 类）</text>
+  <circle cx="664" cy="132" r="6" fill="#16a34a"/><text x="680" y="136" class="r" fill="#334155">定时任务 automations</text>
+  <circle cx="664" cy="156" r="6" fill="#db2777"/><text x="680" y="160" class="r" fill="#334155">记忆 memory</text>
+  <circle cx="664" cy="180" r="6" fill="#0891b2"/><text x="680" y="184" class="r" fill="#334155">Skill skills</text>
+  <circle cx="664" cy="204" r="6" fill="#7c3aed"/><text x="680" y="208" class="r" fill="#334155">亮点 highlights</text>
+  <circle cx="664" cy="228" r="6" fill="#9333ea"/><text x="680" y="232" class="r" fill="#334155">对话记忆 cm / Git git_repos</text>
+</svg>

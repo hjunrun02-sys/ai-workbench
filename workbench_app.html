@@ -18,7 +18,7 @@ body{background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
   font-size:13px;line-height:1.55}
 /* ===== 头部 ===== */
-header{position:sticky;top:0;z-index:40;background:#fff;
+header{position:sticky;top:0;z-index:40;background:var(--card);
   border-bottom:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .head-inner{max-width:1240px;margin:0 auto;padding:14px 22px}
 h1{margin:0;font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px;letter-spacing:.3px}
@@ -48,14 +48,13 @@ h1 .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);display:
 .tablecard{background:var(--card);border:1px solid var(--border);border-radius:12px;
   box-shadow:0 1px 4px rgba(0,0,0,.04)}
 table.bitable{width:100%;border-collapse:collapse;font-size:13px}
-.bitable thead th{position:sticky;top:var(--thead-top);background:#fbfbfc;color:var(--muted);
+.bitable thead th{position:sticky;top:var(--thead-top);background:var(--panel);color:var(--muted);
   font-weight:600;text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);
   white-space:nowrap;z-index:5;font-size:12px;letter-spacing:.3px}
 .bitable tbody td{padding:13px 14px;border-bottom:1px solid var(--border);vertical-align:top;
   color:var(--text);max-width:420px}
 .bitable tbody tr:last-child td{border-bottom:none}
 .bitable tbody tr:nth-child(even){background:var(--zebra)}
-/* 去掉卡片 overflow 后，手动补全四角圆角 */
 .bitable thead th:first-child{border-top-left-radius:12px}
 .bitable thead th:last-child{border-top-right-radius:12px}
 .bitable tbody tr:last-child td:first-child{border-bottom-left-radius:12px}
@@ -72,6 +71,9 @@ table.bitable{width:100%;border-collapse:collapse;font-size:13px}
 .badge.洞察{color:#8a3ffc;background:#f1e9ff}
 .badge.任务{color:var(--warn);background:#fff3e0}
 .badge.其他,.badge.用户级,.badge.项目级{color:var(--muted);background:#eef0f3}
+.badge.有改动{color:var(--danger);background:#fdeceb}
+.badge.干净{color:#1a7f37;background:#e6f4ea}
+.badge.未分类{color:var(--muted);background:#eef0f3}
 .path{font-size:11px;color:var(--muted);word-break:break-all;margin-top:5px}
 /* 操作列 */
 .opcell{white-space:nowrap;width:1%}
@@ -88,10 +90,21 @@ table.bitable{width:100%;border-collapse:collapse;font-size:13px}
 .btn.danger{color:var(--danger);border-color:#f3c2c0}
 .btn.danger:hover{background:var(--danger);border-color:var(--danger);color:#fff}
 .empty{padding:54px 20px;text-align:center;color:var(--muted);font-size:14px}
+/* ===== Git 仓库卡片 ===== */
+.gitgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;padding:16px}
+.repocard{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.repocard .rp{font-weight:600;word-break:break-all;font-size:13px}
+.repocard .rmeta{display:flex;gap:10px;align-items:center;margin:8px 0;flex-wrap:wrap}
+.repocard .rbranch{color:var(--muted);font-size:12px}
+.repocard .remotes{margin:6px 0 10px;font-size:12px;color:var(--muted)}
+.repocard .remotes div{word-break:break-all;padding:2px 0}
+.repocard .rops{display:flex;gap:8px;flex-wrap:wrap}
+.code-pre{background:#0f1115;color:#e6e6e6;padding:14px;border-radius:10px;max-height:60vh;overflow:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 /* ===== 浮层 / 弹窗 ===== */
 .overlay{position:fixed;inset:0;background:rgba(20,22,28,.4);display:none;align-items:center;
   justify-content:center;z-index:100;backdrop-filter:blur(2px)}
-.modal{background:#fff;border-radius:14px;padding:20px;width:min(600px,92vw);
+.modal{background:#fff;border-radius:14px;padding:20px;width:min(640px,92vw);
   box-shadow:0 16px 48px rgba(0,0,0,.22);max-height:86vh;overflow:auto;animation:pop .16s ease}
 @keyframes pop{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}
 .modal h3{margin:0 0 14px;font-size:16px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
@@ -106,6 +119,11 @@ textarea.mctrl{min-height:110px;line-height:1.6}
 .mctrl:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(51,112,255,.12)}
 .modal .row{display:flex;gap:10px;margin-top:18px;justify-content:flex-end}
 .modal .hint{color:var(--muted);font-size:11px;margin-top:10px;line-height:1.5}
+/* ===== 备份列表 ===== */
+.bak-list{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.bak-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:#fafbfc}
+.bak-item .bf{font-size:12px;word-break:break-all;flex:1}
+.bak-item .bm{color:var(--muted);font-size:11px;white-space:nowrap}
 /* ===== toast ===== */
 .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#1f2329;color:#fff;
   padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .25s;z-index:200;
@@ -113,6 +131,15 @@ textarea.mctrl{min-height:110px;line-height:1.6}
 .toast.show{opacity:.96}
 .toast .fp{color:#7fd18b}
 footer{padding:16px 22px;color:var(--muted);font-size:12px;max-width:1240px;margin:0 auto;line-height:1.6}
+[data-theme="dark"]{
+  --bg:#16181c; --panel:#202329; --card:#202329; --border:#33373e; --border2:#3c4047;
+  --text:#e7e8eb; --muted:#9aa0a6; --hover:#2a2e35; --sel:#243154; --zebra:#1d2025;
+}
+[data-theme="dark"] header,[data-theme="dark"] .tablecard,[data-theme="dark"] .tab,
+[data-theme="dark"] .fsel,[data-theme="dark"] .modal,[data-theme="dark"] .repocard,
+[data-theme="dark"] .bak-item,[data-theme="dark"] .search,[data-theme="dark"] .mctrl{background:var(--card);color:var(--text)}
+[data-theme="dark"] .bitable tbody tr:nth-child(even){background:var(--zebra)}
+[data-theme="dark"] .code-pre{background:#0b0c0f}
 </style>
 </head>
 <body>
@@ -121,7 +148,7 @@ footer{padding:16px 22px;color:var(--muted);font-size:12px;max-width:1240px;marg
     <h1><span class="dot"></span> AI 工作台</h1>
     <div class="sub">本地可编辑视图 · 编辑 / 删除真实改写本地文件（写前自动备份 .bak） · 仅本机访问</div>
     <div class="bar">
-      <input class="search" id="search" placeholder="搜索任务 / 记忆 / Skill / 亮点…" oninput="onSearch()">
+      <input class="search" id="search" placeholder="搜索任务 / 记忆 / Skill / 亮点 / 对话记忆…" oninput="onSearch()">
       <div class="tabs" id="tabs"></div>
     </div>
     <div class="filterrow" id="filters"></div>
@@ -131,7 +158,7 @@ footer{padding:16px 22px;color:var(--muted);font-size:12px;max-width:1240px;marg
   <div class="toolbar" id="toolbar"></div>
   <div class="tablecard"><div id="tableHost"></div></div>
 </div>
-<footer>数据来源：automations 数据库、MEMORY.md（全局+项目）、skills、highlights.md。修改/删除会写回这些文件本身并生成备份。</footer>
+<footer>数据来源：automations 数据库、MEMORY.md、skills、highlights.md、conversation_memory.md、本地 Git 仓库。修改/删除会写回这些文件本身并生成备份。</footer>
 
 <div class="overlay" id="overlay">
   <div class="modal">
@@ -152,7 +179,10 @@ const SECTIONS = [
   {key:"memory",      label:"记忆"},
   {key:"skills",      label:"Skill"},
   {key:"highlights",  label:"每日亮点"},
+  {key:"conversation_memory", label:"对话记忆"},
+  {key:"git_repos",   label:"Git 仓库"},
 ];
+const CATEGORIES = ["自媒体","电商","AI技术","运营","其他"];
 const COLS = {
   automations:[
     {key:"名称", edit:"text"},
@@ -160,37 +190,46 @@ const COLS = {
     {key:"频率", edit:null},
     {key:"说明", edit:null},
     {key:"下次运行", edit:null},
+    {key:"分类", edit:"category"},
   ],
   memory:[
     {key:"主题", edit:null},
     {key:"内容", edit:"area"},
     {key:"来源", edit:null},
+    {key:"分类", edit:"category"},
   ],
   skills:[
     {key:"名称", edit:null},
     {key:"位置", edit:null},
     {key:"功能说明", edit:"area"},
     {key:"路径", edit:null},
+    {key:"分类", edit:"category"},
   ],
   highlights:[
     {key:"类型", edit:"select", opts:["决策","学习","洞察","任务","其他"]},
     {key:"日期", edit:null},
     {key:"内容", edit:"area"},
+    {key:"分类", edit:"category"},
   ],
+  conversation_memory:[
+    {key:"类型", edit:"select", opts:["决策","学习","洞察","任务","其他"]},
+    {key:"日期", edit:null},
+    {key:"内容", edit:"area"},
+    {key:"分类", edit:"category"},
+  ],
+  git_repos:[],
 };
-// 哪些分区允许删除（Skill 涉及文件，不做删除以防误删）
-const CAN_DELETE = {automations:true, memory:true, skills:false, highlights:true};
+const CAN_DELETE = {automations:true, memory:true, skills:false, highlights:true, conversation_memory:true, git_repos:false};
 
 let DATA={}, COUNTS={}, FILTERS={};
 let activeKey=SECTIONS[0].key, query="", activeFilters={};
 let editCtx=null;
 
 function el(tag,cls,t){const e=document.createElement(tag);if(cls)e.className=cls;if(t!=null)e.textContent=t;return e;}
-function badgeClass(t){return (['决策','学习','洞察','任务','运行中','已暂停','用户级','项目级'].includes(t))?t:'其他';}
+function badgeClass(t){return (['决策','学习','洞察','任务','运行中','已暂停','用户级','项目级','有改动','干净','未分类'].includes(t))?t:'其他';}
 function sectionLabel(k){return (SECTIONS.find(s=>s.key===k)||{}).label||k;}
-function editFieldsFor(sec){return (COLS[sec]||[]).filter(c=>c.edit).map(c=>({key:c.key,edit:c.edit,opts:c.opts}));}
+function editFieldsFor(sec){return (COLS[sec]||[]).filter(c=>c.edit && c.edit!=='category').map(c=>({key:c.key,edit:c.edit,opts:c.opts}));}
 
-// 头部高度变化时，重算表头 sticky 偏移
 function syncTheadTop(){
   const h=document.querySelector('header').getBoundingClientRect().height;
   document.documentElement.style.setProperty('--thead-top', h+'px');
@@ -199,6 +238,7 @@ function syncTheadTop(){
 async function load(){
   const r=await fetch('/api/data'); const j=await r.json();
   DATA=j.data; COUNTS=j.counts; FILTERS=j.filters;
+  applyTheme();
   buildTabs(); buildFilters(); buildToolbar(); render(); syncTheadTop();
 }
 function buildTabs(){
@@ -219,6 +259,7 @@ function buildFilters(){
     b.appendChild(el('span','flabel',d.label+'：'));
     const sel=document.createElement('select'); sel.className='fsel';
     const o0=document.createElement('option'); o0.value='__all__';o0.textContent='全部'; sel.appendChild(o0);
+    if(d.field==='分类'){ const ou=document.createElement('option'); ou.value='';ou.textContent='未分类'; sel.appendChild(ou); }
     d.values.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
     sel.value=activeFilters[d.field]||'__all__';
     sel.onchange=()=>{if(sel.value==='__all__')delete activeFilters[d.field];else activeFilters[d.field]=sel.value;render();};
@@ -228,11 +269,16 @@ function buildFilters(){
 function buildToolbar(){
   const tb=document.getElementById('toolbar'); tb.innerHTML='';
   const sp=el('div','spacer'); tb.appendChild(sp);
+  const themeBtn=el('button','btn ghost','主题'); themeBtn.onclick=toggleTheme; tb.appendChild(themeBtn);
+  const expBtn=el('button','btn ghost','导出'); expBtn.onclick=exportData; tb.appendChild(expBtn);
   const addBtn={
     highlights:{label:'+ 新增亮点', fn:openAdd},
     automations:{label:'+ 新建定时任务', fn:openAddAutomation},
+    conversation_memory:{label:'+ 新增对话记忆', fn:openAddCM},
   }[activeKey];
   if(addBtn){ const b=el('button','btn primary',addBtn.label); b.onclick=addBtn.fn; tb.appendChild(b); }
+  const bak=el('button','btn ghost','备份管理');
+  bak.onclick=openBackups; tb.appendChild(bak);
   const close=el('button','btn ghost','关闭工作台');
   close.onclick=async()=>{
     if(confirm('确定关闭本地工作台服务？关闭后需重新双击桌面「start-workbench.bat」才能再编辑。')){
@@ -257,7 +303,7 @@ function filtered(){
     items=items.filter(it=>(it[f]||'')===v);
   }
   if(query){const q=query.toLowerCase();items=items.filter(it=>JSON.stringify(it).toLowerCase().includes(q));}
-  if(activeKey==='highlights'){ items=items.slice().sort((a,b)=>(b['日期']||'').localeCompare(a['日期']||'')); }
+  if(activeKey==='highlights'||activeKey==='conversation_memory'){ items=items.slice().sort((a,b)=>(b['日期']||'').localeCompare(a['日期']||'')); }
   return items;
 }
 function emptMsg(){
@@ -267,11 +313,14 @@ function emptMsg(){
     memory:'（暂无记忆小节）去对应 MEMORY.md 添加 ## 小节',
     skills:'（暂无 Skill）',
     highlights:'（暂无亮点）点击右上角「+ 新增亮点」添加',
+    conversation_memory:'（暂无对话记忆）点击右上角「+ 新增对话记忆」记录对话洞察',
+    git_repos:'（未扫描到 Git 仓库）可在 data/git_roots.txt 配置仓库根目录',
   };
   return g[activeKey]||'（暂无内容）';
 }
 function render(){
   const host=document.getElementById('tableHost'); host.innerHTML='';
+  if(activeKey==='git_repos'){ renderGit(host); return; }
   const items=filtered();
   if(!items.length){host.appendChild(el('div','empty',emptMsg()));return;}
   const cols=COLS[activeKey];
@@ -287,8 +336,12 @@ function render(){
       const td=el('td');
       const val=it[c.key];
       if(c.edit==='select' || c.key==='状态'){
-        td.appendChild(el('span','badge '+badgeClass(val),val));
+        td.appendChild(el('span','badge '+badgeClass(val),val||'其他'));
         attachEdit(td,it,c,val);
+      } else if(c.edit==='category'){
+        td.appendChild(el('span','badge '+(val?val:'未分类'),val||'未分类'));
+        td.classList.add('ed');
+        td.onclick=()=>openCategoryEditor(it);
       } else if(c.edit){
         td.appendChild(el('div','cell-text',val));
         td.classList.add('ed'); attachEdit(td,it,c,val);
@@ -300,15 +353,21 @@ function render(){
     });
     // 操作列
     const op=el('td','opcell');
-    const bEdit=el('button','btn sm','编辑'); bEdit.onclick=()=>openRowEditor(it); op.appendChild(bEdit);
-    if(CAN_DELETE[activeKey]){
-      const bDel=el('button','btn sm danger','删除'); bDel.onclick=()=>delItem(it.id); op.appendChild(bDel);
+    if(activeKey==='skills'){
+      const bView=el('button','btn sm','查看'); bView.onclick=()=>openSkillView(it.id); op.appendChild(bView);
+      const bEdit=el('button','btn sm','编辑'); bEdit.onclick=()=>openRowEditor(it); op.appendChild(bEdit);
+    } else if(activeKey==='automations'){
+      const bEdit=el('button','btn sm','编辑'); bEdit.onclick=()=>openEditAutomation(it); op.appendChild(bEdit);
+      if(CAN_DELETE[activeKey]){ const bDel=el('button','btn sm danger','删除'); bDel.onclick=()=>delItem(it.id); op.appendChild(bDel); }
+    } else {
+      const bEdit=el('button','btn sm','编辑'); bEdit.onclick=()=>openRowEditor(it); op.appendChild(bEdit);
+      if(CAN_DELETE[activeKey]){ const bDel=el('button','btn sm danger','删除'); bDel.onclick=()=>delItem(it.id); op.appendChild(bDel); }
     }
     tr.appendChild(op);
     tb.appendChild(tr);
   });
   table.appendChild(tb); host.appendChild(table);
-  syncTheadTop();   // 切 Tab 时筛选栏高度会变，重算表头 sticky 偏移
+  syncTheadTop();
 }
 function attachEdit(td,it,c,val){
   td.onclick=(e)=>{ if(e.target.tagName==='BUTTON')return; openEditor(it,c,val); };
@@ -355,18 +414,108 @@ function openRowEditor(it){
   document.getElementById('overlay').style.display='flex';
   setTimeout(()=>{const f=body.querySelector('.mctrl'); if(f)f.focus();},30);
 }
+function openCategoryEditor(it){
+  editCtx={category:true, id:it.id};
+  document.getElementById('mTitle').textContent='设置分类';
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  body.appendChild(el('div','flabel','分类'));
+  const sel=document.createElement('select'); sel.className='mctrl'; sel.id='mCat';
+  const o0=document.createElement('option'); o0.value=''; o0.textContent='未分类'; sel.appendChild(o0);
+  CATEGORIES.forEach(c=>{const op=document.createElement('option');op.value=c;op.textContent=c;sel.appendChild(op);});
+  sel.value=it['分类']||'';
+  body.appendChild(sel);
+  document.getElementById('mHint').textContent='分类用于跨内容统一筛选（自媒体/电商/AI技术/运营/其他）。保存写入 categories.json。';
+  document.getElementById('overlay').style.display='flex';
+  setTimeout(()=>sel.focus(),30);
+}
+async function openSkillView(path){
+  const r=await fetch('/api/skill_content?path='+encodeURIComponent(path));
+  const j=await r.json();
+  document.getElementById('mTitle').textContent='Skill 内容';
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  if(!j.ok){ body.appendChild(el('div','cell-text','读取失败：'+(j.error||''))); }
+  else {
+    const pre=document.createElement('pre'); pre.className='code-pre'; pre.textContent=j.content; body.appendChild(pre);
+  }
+  document.getElementById('mHint').textContent=path;
+  document.getElementById('saveBtn').style.display='none';
+  document.getElementById('overlay').style.display='flex';
+  editCtx={viewOnly:true};
+}
 function openAdd(){
   editCtx={add:true};
   document.getElementById('mTitle').textContent='新增每日亮点';
   const body=document.getElementById('mBody'); body.innerHTML='';
   const sel=document.createElement('select'); sel.id='mType'; sel.className='mctrl';
   ['决策','学习','洞察','任务','其他'].forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;sel.appendChild(op);});
+  const cat=document.createElement('select'); cat.id='mCat'; cat.className='mctrl';
+  const o0=document.createElement('option'); o0.value=''; o0.textContent='未分类'; cat.appendChild(o0);
+  CATEGORIES.forEach(c=>{const op=document.createElement('option');op.value=c;op.textContent=c;cat.appendChild(op);});
   const ta=document.createElement('textarea'); ta.id='mContent'; ta.className='mctrl'; ta.placeholder='亮点内容…';
   body.appendChild(el('div','flabel','类型')); body.appendChild(sel);
+  body.appendChild(el('div','flabel','分类')); body.appendChild(cat);
   body.appendChild(el('div','flabel','内容')); body.appendChild(ta);
   document.getElementById('mHint').textContent='将追加到 highlights.md 并生成 .bak 备份。';
   document.getElementById('overlay').style.display='flex';
   setTimeout(()=>ta.focus(),30);
+}
+function openAddCM(){
+  editCtx={addCM:true};
+  document.getElementById('mTitle').textContent='新增对话记忆';
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  const sel=document.createElement('select'); sel.id='mType'; sel.className='mctrl';
+  ['决策','学习','洞察','任务','其他'].forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;sel.appendChild(op);});
+  const cat=document.createElement('select'); cat.id='mCat'; cat.className='mctrl';
+  const o0=document.createElement('option'); o0.value=''; o0.textContent='未分类'; cat.appendChild(o0);
+  CATEGORIES.forEach(c=>{const op=document.createElement('option');op.value=c;op.textContent=c;cat.appendChild(op);});
+  const ta=document.createElement('textarea'); ta.id='mContent'; ta.className='mctrl'; ta.placeholder='对话中的洞察 / 决策 / 待办…';
+  body.appendChild(el('div','flabel','类型')); body.appendChild(sel);
+  body.appendChild(el('div','flabel','分类')); body.appendChild(cat);
+  body.appendChild(el('div','flabel','内容')); body.appendChild(ta);
+  document.getElementById('mHint').textContent='将追加到 conversation_memory.md 并生成 .bak 备份。可由 agent 端自动写入。';
+  document.getElementById('overlay').style.display='flex';
+  setTimeout(()=>ta.focus(),30);
+}
+function parseFreqCn(s){
+  const r={ftype:'每日',hour:9,minute:0,byday:'MO',bymonthday:1,scheduled_at:null};
+  if(!s) return r;
+  if(s.startsWith('每天')){ const m=s.match(/(\d+):(\d+)/); if(m){r.hour=+m[1];r.minute=+m[2];} }
+  else if(s.startsWith('每周')){ const wmap={'一':'MO','二':'TU','三':'WE','四':'TH','五':'FR','六':'SA','日':'SU'}; const m=s.match(/周(.)/); if(m)r.byday=wmap[m[1]]||'MO'; const t=s.match(/(\d+):(\d+)/); if(t){r.hour=+t[1];r.minute=+t[2];} r.ftype='每周'; }
+  else if(s.startsWith('每月')){ const m=s.match(/(\d+)/); if(m)r.bymonthday=Math.min(28,+m[1]); const t=s.match(/(\d+):(\d+)/); if(t){r.hour=+t[1];r.minute=+t[2];} r.ftype='每月'; }
+  else if(s.startsWith('一次性')){ const m=s.match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/); if(m){r.scheduled_at=`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;} r.ftype='一次性'; }
+  return r;
+}
+function openEditAutomation(it){
+  editCtx={editAuto:true, id:it.id};
+  const f=parseFreqCn(it['频率']);
+  document.getElementById('mTitle').textContent='编辑定时任务';
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  body.appendChild(el('div','flabel','名称'));
+  const name=document.createElement('input'); name.id='aName'; name.className='mctrl'; name.value=it['名称']||''; body.appendChild(name);
+  body.appendChild(el('div','flabel','说明（任务要做什么）'));
+  const prompt=document.createElement('textarea'); prompt.id='aPrompt'; prompt.className='mctrl'; prompt.value=it['说明全文']||''; body.appendChild(prompt);
+  body.appendChild(el('div','flabel','频率'));
+  const ftype=document.createElement('select'); ftype.id='aFtype'; ftype.className='mctrl';
+  ['每日','每周','每月','一次性'].forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;ftype.appendChild(op);});
+  ftype.value=f.ftype; ftype.onchange=toggleFreq; body.appendChild(ftype);
+  const tl=document.createElement('div'); tl.className='flabel'; tl.id='aTimeLabel'; tl.textContent='时间'; body.appendChild(tl);
+  const time=document.createElement('input'); time.id='aTime'; time.type='time'; time.className='mctrl'; time.value=`${String(f.hour).padStart(2,'0')}:${String(f.minute).padStart(2,'0')}`; body.appendChild(time);
+  const wdWrap=document.createElement('div'); wdWrap.id='aWdWrap'; wdWrap.appendChild(el('div','flabel','星期'));
+  const wd=document.createElement('select'); wd.id='aWday'; wd.className='mctrl';
+  ['周一','周二','周三','周四','周五','周六','周日'].forEach((o,i)=>{const op=document.createElement('option');op.value=['MO','TU','WE','TH','FR','SA','SU'][i];op.textContent=o;wd.appendChild(op);});
+  wd.value=f.byday; wdWrap.appendChild(wd); body.appendChild(wdWrap);
+  const mdWrap=document.createElement('div'); mdWrap.id='aMdWrap'; mdWrap.appendChild(el('div','flabel','每月几号（1-28）'));
+  const md=document.createElement('input'); md.id='aMday'; md.type='number'; md.min=1; md.max=28; md.value=f.bymonthday; md.className='mctrl'; mdWrap.appendChild(md); body.appendChild(mdWrap);
+  const onceWrap=document.createElement('div'); onceWrap.id='aOnceWrap'; onceWrap.appendChild(el('div','flabel','执行时间'));
+  const once=document.createElement('input'); once.id='aOnce'; once.type='datetime-local'; once.className='mctrl'; once.value=f.scheduled_at||''; onceWrap.appendChild(once); body.appendChild(onceWrap);
+  body.appendChild(el('div','flabel','状态'));
+  const st=document.createElement('select'); st.id='aStatus'; st.className='mctrl';
+  ['运行中','已暂停'].forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;st.appendChild(op);});
+  st.value=it['状态']||'已暂停'; body.appendChild(st);
+  document.getElementById('mHint').textContent='多字段一次保存，真实改写 automations 数据库并生成 .bak 备份。';
+  document.getElementById('overlay').style.display='flex';
+  setTimeout(()=>name.focus(),30);
+  toggleFreq();
 }
 function openAddAutomation(){
   editCtx={addAuto:true};
@@ -380,24 +529,16 @@ function openAddAutomation(){
   const ftype=document.createElement('select'); ftype.id='aFtype'; ftype.className='mctrl';
   ['每日','每周','每月','一次性'].forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;ftype.appendChild(op);});
   ftype.onchange=toggleFreq; body.appendChild(ftype);
-  // 时间（每日/每周/每月）
   const tl=document.createElement('div'); tl.className='flabel'; tl.id='aTimeLabel'; tl.textContent='时间'; body.appendChild(tl);
   const time=document.createElement('input'); time.id='aTime'; time.type='time'; time.className='mctrl'; time.value='09:00'; body.appendChild(time);
-  // 星期（每周）
-  const wdWrap=document.createElement('div'); wdWrap.id='aWdWrap';
-  wdWrap.appendChild(el('div','flabel','星期'));
+  const wdWrap=document.createElement('div'); wdWrap.id='aWdWrap'; wdWrap.appendChild(el('div','flabel','星期'));
   const wd=document.createElement('select'); wd.id='aWday'; wd.className='mctrl';
   ['周一','周二','周三','周四','周五','周六','周日'].forEach((o,i)=>{const op=document.createElement('option');op.value=['MO','TU','WE','TH','FR','SA','SU'][i];op.textContent=o;wd.appendChild(op);});
   wdWrap.appendChild(wd); body.appendChild(wdWrap);
-  // 每月几号（每月）
-  const mdWrap=document.createElement('div'); mdWrap.id='aMdWrap';
-  mdWrap.appendChild(el('div','flabel','每月几号（1-28）'));
+  const mdWrap=document.createElement('div'); mdWrap.id='aMdWrap'; mdWrap.appendChild(el('div','flabel','每月几号（1-28）'));
   const md=document.createElement('input'); md.id='aMday'; md.type='number'; md.min=1; md.max=28; md.value=1; md.className='mctrl'; mdWrap.appendChild(md); body.appendChild(mdWrap);
-  // 一次性日期时间
-  const onceWrap=document.createElement('div'); onceWrap.id='aOnceWrap';
-  onceWrap.appendChild(el('div','flabel','执行时间'));
+  const onceWrap=document.createElement('div'); onceWrap.id='aOnceWrap'; onceWrap.appendChild(el('div','flabel','执行时间'));
   const once=document.createElement('input'); once.id='aOnce'; once.type='datetime-local'; once.className='mctrl'; onceWrap.appendChild(once); body.appendChild(onceWrap);
-  // 状态
   body.appendChild(el('div','flabel','状态'));
   const st=document.createElement('select'); st.id='aStatus'; st.className='mctrl';
   ['运行中','已暂停'].forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;st.appendChild(op);});
@@ -414,6 +555,127 @@ function toggleFreq(){
   document.getElementById('aWdWrap').style.display=(t==='每周')?'':'none';
   document.getElementById('aMdWrap').style.display=(t==='每月')?'':'none';
   document.getElementById('aOnceWrap').style.display=(t==='一次性')?'':'none';
+}
+function renderGit(host){
+  const items=filtered();
+  if(!items.length){host.appendChild(el('div','empty',emptMsg()));return;}
+  const grid=el('div','gitgrid');
+  items.forEach(r=>{
+    const card=el('div','repocard');
+    card.appendChild(el('div','rp',r['路径']));
+    const meta=el('div','rmeta');
+    meta.appendChild(el('span','badge '+badgeClass(r['状态']),r['状态']));
+    meta.appendChild(el('span','rbranch','分支：'+(r['分支']||'-')));
+    if(r['改动数']>0) meta.appendChild(el('span','rbranch','改动 '+r['改动数']+' 处'));
+    card.appendChild(meta);
+    const rem=el('div','remotes');
+    if(r['远程']&&r['远程'].length){
+      r['远程'].forEach(rm=>rem.appendChild(el('div',null,rm['name']+' → '+rm['url']+' ('+rm['type']+')')));
+    } else rem.appendChild(el('div',null,'（无远程）'));
+    card.appendChild(rem);
+    const ops=el('div','rops');
+    const mk=(label,fn)=>{const b=el('button','btn sm',label); b.onclick=fn; return b;};
+    ops.appendChild(mk('fetch',()=>gitAct('fetch',r['路径'])));
+    ops.appendChild(mk('pull',()=>gitAct('pull',r['路径'])));
+    ops.appendChild(mk('checkout',()=>{const b=prompt('切换到分支名：',r['分支']); if(b)gitAct('checkout',r['路径'],b);}));
+    card.appendChild(ops);
+    grid.appendChild(card);
+  });
+  host.appendChild(grid);
+}
+async function gitAct(action,path,branch){
+  const r=await fetch('/api/git_action',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action,path,branch})});
+  const j=await r.json();
+  if(!j.ok){ toast('操作失败：'+(j.err||j.error||'')+(j.err&&j.err.includes('TLS')?'（远程操作受本机 git TLS 限制，可改用 GitHub Desktop/Gitee 客户端）':''),true); }
+  else { await load(); toast('已执行 '+action+(j.out?('：'+j.out.trim().split('\n').slice(-1)[0]):'')); }
+}
+async function openBackups(){
+  const r=await fetch('/api/backups'); const j=await r.json();
+  editCtx={viewOnly:true};
+  document.getElementById('mTitle').textContent='备份管理（误删恢复）';
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  if(!j.backups.length){ body.appendChild(el('div','cell-text','（暂无 .bak 备份文件）')); }
+  else {
+    const list=el('div','bak-list');
+    j.backups.forEach(b=>{
+      const item=el('div','bak-item');
+      item.appendChild(el('div','bf',b['file']+'  →  '+b['original']));
+      item.appendChild(el('div','bm',b['mtime']));
+      const rb=el('button','btn sm primary','还原');
+      rb.onclick=async()=>{ if(!confirm('还原「'+b['file']+'」？将覆盖当前文件（原文件会再备份一次）。'))return;
+        const rr=await fetch('/api/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:b['file']})});
+        const rj=await rr.json(); if(!rj.ok){toast('还原失败：'+(rj.error||''),true);return;} closeEditor(); await load(); toast('已还原：'+rj.path); };
+      item.appendChild(rb); list.appendChild(item);
+    });
+    body.appendChild(list);
+  }
+  document.getElementById('mHint').textContent='每个 .bak 是对应文件上次写前的副本。还原会把它复制回原文件。';
+  document.getElementById('saveBtn').style.display='none';
+  document.getElementById('overlay').style.display='flex';
+}
+function closeEditor(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('saveBtn').style.display='';
+  editCtx=null;
+}
+async function onSave(){
+  if(!editCtx)return;
+  if(editCtx.viewOnly)return;
+  if(editCtx.add)return saveAdd();
+  if(editCtx.addCM)return saveAddCM();
+  if(editCtx.addAuto)return saveAddAutomation();
+  if(editCtx.editAuto)return saveEditAutomation();
+  if(editCtx.category)return saveCategory();
+  if(editCtx.multi)return saveMulti();
+  return saveEditor();
+}
+async function saveCategory(){
+  const cat=document.getElementById('mCat').value;
+  const r=await fetch('/api/update_category',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({section:activeKey,id:editCtx.id,category:cat})});
+  const j=await r.json();
+  if(!j.ok){toast('保存失败：'+(j.error||''),true);return;}
+  closeEditor(); await load(); toast('已设置分类：'+(cat||'未分类'));
+}
+async function saveEditor(){
+  const val=document.querySelector('#mBody .mctrl').value;
+  const r=await fetch('/api/update',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({section:activeKey,id:editCtx.id,field:editCtx.field,value:val})});
+  const j=await r.json();
+  if(!j.ok){toast('保存失败：'+(j.error||''),true);return;}
+  closeEditor(); await load(); toast('已保存至 '+j.path);
+}
+async function saveMulti(){
+  const values={};
+  document.querySelectorAll('#mBody .mctrl').forEach(c=>{values[c.dataset.key]=c.value;});
+  const r=await fetch('/api/update_multi',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({section:activeKey,id:editCtx.id,values})});
+  const j=await r.json();
+  if(!j.ok){toast('保存失败：'+(j.error||''),true);return;}
+  closeEditor(); await load(); toast('已保存至 '+j.path);
+}
+async function saveAdd(){
+  const type=document.getElementById('mType').value;
+  const category=document.getElementById('mCat').value;
+  const content=document.getElementById('mContent').value.trim();
+  if(!content){toast('内容不能为空',true);return;}
+  const r=await fetch('/api/add',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({type,content,category})});
+  const j=await r.json();
+  if(!j.ok){toast('新增失败：'+(j.error||''),true);return;}
+  closeEditor(); await load(); toast('已新增至 '+j.path);
+}
+async function saveAddCM(){
+  const type=document.getElementById('mType').value;
+  const category=document.getElementById('mCat').value;
+  const content=document.getElementById('mContent').value.trim();
+  if(!content){toast('内容不能为空',true);return;}
+  const r=await fetch('/api/add_cm',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({type,content,category})});
+  const j=await r.json();
+  if(!j.ok){toast('新增失败：'+(j.error||''),true);return;}
+  closeEditor(); await load(); toast('已新增至 '+j.path);
 }
 async function saveAddAutomation(){
   const ftype=document.getElementById('aFtype').value;
@@ -436,40 +698,27 @@ async function saveAddAutomation(){
   if(!j.ok){toast('新建失败：'+(j.error||''),true);return;}
   closeEditor(); await load(); toast('已新建定时任务（备份于 '+j.path+'.bak）');
 }
-function closeEditor(){document.getElementById('overlay').style.display='none';editCtx=null;}
-async function onSave(){
-  if(!editCtx)return;
-  if(editCtx.add)return saveAdd();
-  if(editCtx.addAuto)return saveAddAutomation();
-  if(editCtx.multi)return saveMulti();
-  return saveEditor();
-}
-async function saveEditor(){
-  const val=document.querySelector('#mBody .mctrl').value;
-  const r=await fetch('/api/update',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({section:activeKey,id:editCtx.id,field:editCtx.field,value:val})});
-  const j=await r.json();
-  if(!j.ok){toast('保存失败：'+(j.error||''),true);return;}
-  closeEditor(); await load(); toast('已保存至 '+j.path);
-}
-async function saveMulti(){
-  const values={};
-  document.querySelectorAll('#mBody .mctrl').forEach(c=>{values[c.dataset.key]=c.value;});
+async function saveEditAutomation(){
+  const ftype=document.getElementById('aFtype').value;
+  const values={名称:document.getElementById('aName').value.trim(),
+    说明:document.getElementById('aPrompt').value.trim(), 状态:document.getElementById('aStatus').value,
+    频率类型:ftype};
+  if(!values['名称']){toast('名称不能为空',true);return;}
+  if(!values['说明']){toast('说明不能为空',true);return;}
+  if(ftype==='一次性'){
+    values['执行时间']=document.getElementById('aOnce').value||null;
+    if(!values['执行时间']){toast('请选择执行时间',true);return;}
+  } else {
+    const tv=document.getElementById('aTime').value||'09:00'; const sp=tv.split(':');
+    values['小时']=parseInt(sp[0])||9; values['分钟']=parseInt(sp[1])||0;
+    if(ftype==='每周') values['星期']=document.getElementById('aWday').value;
+    if(ftype==='每月') values['每月几号']=parseInt(document.getElementById('aMday').value)||1;
+  }
   const r=await fetch('/api/update_multi',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({section:activeKey,id:editCtx.id,values})});
+    body:JSON.stringify({section:'automations',id:editCtx.id,values})});
   const j=await r.json();
   if(!j.ok){toast('保存失败：'+(j.error||''),true);return;}
   closeEditor(); await load(); toast('已保存至 '+j.path);
-}
-async function saveAdd(){
-  const type=document.getElementById('mType').value;
-  const content=document.getElementById('mContent').value.trim();
-  if(!content){toast('内容不能为空',true);return;}
-  const r=await fetch('/api/add',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({type,content})});
-  const j=await r.json();
-  if(!j.ok){toast('新增失败：'+(j.error||''),true);return;}
-  closeEditor(); await load(); toast('已新增至 '+j.path);
 }
 async function delItem(hid){
   const name=(DATA[activeKey].find(it=>it.id===hid)||{})['名称']||(DATA[activeKey].find(it=>it.id===hid)||{})['主题']||'该条';
@@ -481,6 +730,14 @@ async function delItem(hid){
   await load(); toast('已删除（备份于 '+j.path+'.bak）');
 }
 function onSearch(){query=document.getElementById('search').value.trim();render();}
+function applyTheme(){ const t=localStorage.getItem('theme'); if(t==='dark') document.documentElement.setAttribute('data-theme','dark'); }
+function toggleTheme(){ const cur=document.documentElement.getAttribute('data-theme'); const nxt=cur==='dark'?'':'dark'; if(nxt)document.documentElement.setAttribute('data-theme','dark'); else document.documentElement.removeAttribute('data-theme'); localStorage.setItem('theme',nxt); }
+function exportData(){
+  const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='ai-workbench-export-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); URL.revokeObjectURL(a.href); toast('已导出全部数据为 JSON');
+}
 function toast(msg,err){
   const t=document.getElementById('toast');
   if(err){t.innerHTML='<span style="color:#ff9b95">'+msg+'</span>';}
