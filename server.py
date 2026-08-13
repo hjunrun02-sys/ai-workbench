@@ -197,6 +197,161 @@ def update_category(section, rid, category):
     return CATEGORIES_PATH
 
 
+# ---------------- 自动分类引擎（离线 / 零依赖 / 本地优先） ----------------
+# 设计：未分类内容 -> 读内容 -> 与分类库已有类别做关键词匹配 -> 命中则建议归类，
+#       否则从内容最显著词生成新类别。全部为本地规则，不联网、不调用大模型。
+from collections import Counter, defaultdict
+
+STOPWORDS = set(
+    "的 了 和 与 及 在 是 我 你 他 她 它 们 这 那 有 为 对 等 也 都 就 而 把 被 让 从 到 以 于 上 下 中 个 一 一个 我们 你们 他们 这个 那个 可以 通过 进行 使用 如何 什么 怎么 为什么 一种 以及 并且 但是 因为 所以 如果 没有 不是 就是 一个 the a an and or of to in on for is are be with".split()
+)
+
+# 默认分类的种子关键词（引导初始匹配；随用户实际分类样本增长而增强）
+SEED_KEYWORDS = {
+    "自媒体": ["公众号", "短视频", "抖音", "小红书", "b站", "bilibili", "粉丝", "流量", "内容创作", "选题", "涨粉", "博主", "up主"],
+    "电商": ["店铺", "商品", "淘宝", "京东", "拼多多", "sku", "订单", "物流", "直播带货", "选品", "转化率", "客单价", "带货", "电商"],
+    "AI技术": ["模型", "大模型", "llm", "gpt", "prompt", "提示词", "训练", "推理", "agent", "智能体", "向量", "embedding", "微调", "神经网络", "算法", "机器学习", "深度学习"],
+    "运营": ["活动", "用户增长", "留存", "社群", "私域", "投放", "拉新", "复购", "指标", "kpi", "运营", "增长"],
+    "其他": [],
+}
+
+
+def _tokenize(text):
+    """轻量分词：中文按 2-gram，英文/数字按原词；去停用词。"""
+    text = (text or "").lower()
+    en = re.findall(r"[a-z0-9_]+", text)
+    cn = re.sub(r"[^\u4e00-\u9fff]", " ", text)
+    grams = []
+    for seg in cn.split():
+        seg = seg.strip()
+        for i in range(len(seg) - 1):
+            grams.append(seg[i:i + 2])
+    return [t for t in (en + grams) if t not in STOPWORDS and len(t) >= 2]
+
+
+def _section_text(section, it):
+    if section == "automations":
+        return (it.get("名称", "") + " " + it.get("说明全文", ""))
+    if section == "memory":
+        return (it.get("主题", "") + " " + it.get("内容", ""))
+    if section == "skills":
+        return (it.get("名称", "") + " " + it.get("功能说明", ""))
+    if section in ("highlights", "conversation_memory"):
+        return (it.get("类型", "") + " " + it.get("内容", ""))
+    return ""
+
+
+def _text_map(data):
+    """构建 {section: {rid: 可分析文本}}，避免重复 collect()。"""
+    m = {}
+    for section in ("automations", "memory", "skills", "highlights", "conversation_memory"):
+        m[section] = {it.get("id"): _section_text(section, it) for it in data.get(section, [])}
+    return m
+
+
+def _build_category_profile(data, textmap):
+    """从 categories.json 已分类样本 + 种子词典 构建每个分类的词频权重。"""
+    cats = load_categories()
+    corpus = defaultdict(list)
+    for section, items in cats.items():
+        for rid, cat in items.items():
+            txt = (textmap.get(section) or {}).get(rid, "")
+            if txt:
+                corpus[cat].append(txt)
+    profile = {}
+    for cat, texts in corpus.items():
+        c = Counter()
+        if SEED_KEYWORDS.get(cat):
+            for kw in SEED_KEYWORDS[cat]:
+                c[kw] += 3
+        for t in texts:
+            for tok in _tokenize(t):
+                c[tok] += 1
+        profile[cat] = c
+    # 没有已分类样本时，用种子词典初始化已知默认分类，保证初始即可匹配
+    for cat, kws in SEED_KEYWORDS.items():
+        if cat not in profile:
+            profile[cat] = Counter({kw: 3 for kw in kws})
+    return profile
+
+
+def _generate_category(toks, profile):
+    """匹配不到时，从内容取最显著（自身高频、且不在多数已知类泛化出现）的词作新类别名。"""
+    known = Counter()
+    for c in profile.values():
+        for k, v in c.items():
+            known[k] += v
+    scored = []
+    for tok in set(toks):
+        local = toks.count(tok)
+        global_w = known.get(tok, 0)
+        score = local * 2 - global_w * 0.1
+        scored.append((score, tok))
+    scored.sort(reverse=True)
+    for _, tok in scored:
+        if tok not in ("其他",) and len(tok) >= 2:
+            return tok
+    return ""
+
+
+def suggest_category(section, rid, text, profile):
+    """返回 {action:'classify'|'generate'|'none', category, score}。"""
+    if not text:
+        return {"action": "none"}
+    toks = _tokenize(text)
+    scores = {}
+    for cat, counter in profile.items():
+        if cat == "其他":
+            continue
+        scores[cat] = sum(counter.get(tok, 0) for tok in set(toks))
+    if scores:
+        best = max(scores, key=scores.get)
+        best_score = scores[best]
+        if best_score >= 3:  # 至少命中 1 个种子词（权重 3）或累计词频达标
+            return {"action": "classify", "category": best, "score": best_score}
+    newcat = _generate_category(toks, profile)
+    if newcat:
+        return {"action": "generate", "category": newcat}
+    return {"action": "classify", "category": "其他"}
+
+
+def auto_classify_all():
+    """对所有未分类条目给出建议（不写入，供前端确认）。"""
+    data = collect()
+    textmap = _text_map(data)
+    profile = _build_category_profile(data, textmap)
+    results = []
+    for section in ("automations", "memory", "skills", "highlights", "conversation_memory"):
+        for it in data.get(section, []):
+            if it.get("分类"):
+                continue
+            rid = it.get("id")
+            text = (textmap.get(section) or {}).get(rid, "")
+            if not text:
+                continue
+            sug = suggest_category(section, rid, text, profile)
+            if sug.get("action") == "none":
+                continue
+            summary = (it.get("名称") or it.get("主题") or it.get("亮点ID")
+                       or it.get("ID") or it.get("内容") or "")[:40]
+            results.append({"section": section, "id": rid, "summary": summary,
+                            "action": sug["action"], "category": sug["category"],
+                            "score": sug.get("score", 0)})
+    return results
+
+
+def all_category_names():
+    """动态分类列表 = 默认类 + categories.json 中已出现的全部类别。"""
+    names = list(DEFAULT_CATEGORIES)
+    seen = set(names)
+    for section, items in load_categories().items():
+        for rid, c in items.items():
+            if c and c not in seen:
+                names.append(c)
+                seen.add(c)
+    return names
+
+
 # ---------------- 自包含的展示/解析原语（不再依赖 sync.py） ----------------
 def short_desc(prompt):
     if not prompt:
@@ -578,21 +733,22 @@ def collect():
 
 
 def compute_filters(data):
+    cats = all_category_names()
     return {
         "automations": [{"field": "状态", "label": "状态",
                          "values": sorted({it.get("状态", "") for it in data["automations"] if it.get("状态")})},
-                        {"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES}],
-        "memory": [{"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES}],
+                        {"field": "分类", "label": "分类", "values": cats}],
+        "memory": [{"field": "分类", "label": "分类", "values": cats}],
         "skills": [{"field": "位置", "label": "位置",
                     "values": sorted({it.get("位置", "") for it in data["skills"] if it.get("位置")})},
-                   {"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES}],
+                   {"field": "分类", "label": "分类", "values": cats}],
         "highlights": [{"field": "类型", "label": "类型",
                         "values": [t for t in VALID_TYPES if t in {it.get("类型", "") for it in data["highlights"]}]},
-                       {"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES},
+                       {"field": "分类", "label": "分类", "values": cats},
                        {"field": "__date_range__", "label": "日期范围", "values": ["近7天", "近30天"]}],
         "conversation_memory": [{"field": "类型", "label": "类型",
                                  "values": [t for t in VALID_TYPES if t in {it.get("类型", "") for it in data["conversation_memory"]}]},
-                                {"field": "分类", "label": "分类", "values": DEFAULT_CATEGORIES}],
+                                {"field": "分类", "label": "分类", "values": cats}],
         "git_repos": [{"field": "状态", "label": "状态", "values": ["有改动", "干净"]}],
     }
 
@@ -1235,7 +1391,8 @@ class Handler(BaseHTTPRequestHandler):
             data = collect()
             self._send(200, {"ok": True, "data": data,
                              "counts": {k: len(v) for k, v in data.items()},
-                             "filters": compute_filters(data)})
+                             "filters": compute_filters(data),
+                             "categories": all_category_names()})
         elif parsed.path == "/api/skill_content":
             q = urllib.parse.parse_qs(parsed.query)
             path = q.get("path", [""])[0]
@@ -1255,6 +1412,8 @@ class Handler(BaseHTTPRequestHandler):
         elif parsed.path == "/api/wb_status":
             self._send(200, {"ok": True, "configured": bool(WB_HOME),
                              "wb_home": WB_HOME, "markers": _wb_markers()})
+        elif parsed.path == "/api/auto_classify":
+            self._send(200, {"ok": True, "suggestions": auto_classify_all()})
         else:
             self._send(404, {"error": "not found"})
 
@@ -1293,6 +1452,14 @@ class Handler(BaseHTTPRequestHandler):
                 sec, rid, category = body["section"], body["id"], body.get("category", "")
                 path = update_category(sec, rid, category)
                 self._send(200, {"ok": True, "path": path})
+            elif self.path == "/api/suggest_category":
+                sec, rid = body["section"], body["id"]
+                data = collect()
+                tm = _text_map(data)
+                text = (tm.get(sec) or {}).get(rid, "")
+                profile = _build_category_profile(data, tm)
+                sug = suggest_category(sec, rid, text, profile)
+                self._send(200, {"ok": True, "suggestion": sug})
             elif self.path == "/api/add":
                 htype, content = body.get("type", "其他"), body.get("content", "").strip()
                 category = body.get("category", "")

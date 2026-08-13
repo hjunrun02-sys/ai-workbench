@@ -74,6 +74,17 @@ table.bitable{width:100%;border-collapse:collapse;font-size:13px}
 .badge.有改动{color:var(--danger);background:#fdeceb}
 .badge.干净{color:#1a7f37;background:#e6f4ea}
 .badge.未分类{color:var(--muted);background:#eef0f3}
+/* 自动分类复核弹窗 */
+.achead{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:12px}
+.aclist{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto}
+.acrow{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px}
+.acinfo{flex:1;min-width:0}
+.actitle{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acmeta{font-size:12px;color:var(--muted);margin-top:3px}
+.acsec{display:inline-block;padding:1px 7px;border-radius:6px;background:#eef0f3;color:var(--muted);margin-right:4px}
+.acbadge{display:inline-block;padding:1px 8px;border-radius:6px;background:#e6f4ea;color:#1a7f37;font-weight:600}
+.acbadge.new{background:#fff4e5;color:#b26a00}
+.acscore{margin-left:6px;color:var(--muted)}
 .path{font-size:11px;color:var(--muted);word-break:break-all;margin-top:5px}
 /* 操作列 */
 .opcell{white-space:nowrap;width:1%}
@@ -183,7 +194,7 @@ const SECTIONS = [
   {key:"git_repos",   label:"Git 仓库"},
   {key:"processes",   label:"进程"},
 ];
-const CATEGORIES = ["自媒体","电商","AI技术","运营","其他"];
+let CATEGORIES = ["自媒体","电商","AI技术","运营","其他"];  // 由后端 /api/data 动态下发（含自动生成的新类别）
 const COLS = {
   automations:[
     {key:"名称", edit:"text"},
@@ -247,6 +258,7 @@ async function load(){
   }
   const r=await fetch('/api/data'); const j=await r.json();
   DATA=j.data; COUNTS=j.counts; FILTERS=j.filters;
+  if(Array.isArray(j.categories) && j.categories.length) CATEGORIES=j.categories;
   buildTabs(); buildFilters(); buildToolbar(); render();
 }
 function shortPath(p){ if(!p) return ''; const s=String(p).replace(/\\/g,'/'); const parts=s.split('/'); return parts.length>2 ? '…/'+parts.slice(-2).join('/') : s; }
@@ -323,6 +335,9 @@ function buildToolbar(){
     conversation_memory:{label:'+ 新增对话记忆', fn:openAddCM},
   }[activeKey];
   if(addBtn){ const b=el('button','btn primary',addBtn.label); b.onclick=addBtn.fn; tb.appendChild(b); }
+  if(["automations","memory","skills","highlights","conversation_memory"].includes(activeKey)){
+    const ac=el('button','btn ghost','自动分类'); ac.onclick=openAutoClassify; tb.appendChild(ac);
+  }
   const tok=el('button','btn ghost','平台令牌'); tok.onclick=openTokens;   tb.appendChild(tok);
   if(wbStatus && wbStatus.configured){
     const conn=el('button','btn ghost','已连接：'+shortPath(wbStatus.wb_home));
@@ -482,6 +497,60 @@ function openCategoryEditor(it){
   document.getElementById('mHint').textContent='分类用于跨内容统一筛选（自媒体/电商/AI技术/运营/其他）。保存写入 categories.json。';
   document.getElementById('overlay').style.display='flex';
   setTimeout(()=>sel.focus(),30);
+}
+async function openAutoClassify(){
+  const r=await fetch('/api/auto_classify'); const j=await r.json();
+  const sugg=j.suggestions||[];
+  editCtx={autoCat:true};
+  document.getElementById('mTitle').textContent='自动分类建议（'+sugg.length+' 条未分类）';
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  document.getElementById('saveBtn').style.display='none';
+  if(!sugg.length){
+    body.appendChild(el('div','cell-text','没有需要分类的内容，或所有内容已分类。'));
+    document.getElementById('overlay').style.display='flex';
+    return;
+  }
+  const head=el('div','achead');
+  head.textContent='系统已读取内容并与分类库比对：能套用现有类别的标「套用」，匹配不到的自动「生成」新类别。请逐条或一键确认应用（应用后可随时在「设置分类」里改名）。';
+  body.appendChild(head);
+  const list=el('div','aclist');
+  sugg.forEach(s=>{
+    const row=el('div','acrow');
+    const info=el('div','acinfo');
+    const badge=el('span','acbadge'+(s.action==='generate'?' new':''),
+      (s.action==='generate'?'＋生成 ':'套用 ')+s.category);
+    const sec=el('span','acsec',sectionLabel(s.section));
+    const title=el('div','actitle'); title.textContent=s.summary||'(无标题)';
+    const meta=el('div','acmeta');
+    meta.appendChild(sec); meta.appendChild(document.createTextNode(' · 建议：')); meta.appendChild(badge);
+    if(s.score) meta.appendChild(el('span','acscore',' 匹配度 '+s.score));
+    info.appendChild(title); info.appendChild(meta);
+    const btn=el('button','btn sm primary','应用');
+    btn.onclick=async()=>{
+      const rr=await fetch('/api/update_category',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({section:s.section,id:s.id,category:s.category})});
+      const rj=await rr.json();
+      if(rj.ok){ btn.textContent='已应用✓'; btn.disabled=true; btn.classList.remove('primary'); }
+    };
+    row.appendChild(info); row.appendChild(btn);
+    list.appendChild(row);
+  });
+  body.appendChild(list);
+  const foot=el('div','row'); foot.style.marginTop='14px';
+  const allBtn=el('button','btn primary','全部应用');
+  allBtn.onclick=async()=>{
+    for(const s of sugg){
+      await fetch('/api/update_category',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({section:s.section,id:s.id,category:s.category})});
+    }
+    toast('已应用全部 '+sugg.length+' 条分类');
+    document.getElementById('overlay').style.display='none';
+    await load();
+  };
+  foot.appendChild(allBtn);
+  body.appendChild(foot);
+  document.getElementById('mHint').textContent='分类基于内容关键词匹配；生成的新类别源自内容显著词，可在「设置分类」中改名。';
+  document.getElementById('overlay').style.display='flex';
 }
 async function openSkillView(path){
   const r=await fetch('/api/skill_content?path='+encodeURIComponent(path));
