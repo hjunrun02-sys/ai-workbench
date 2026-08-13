@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Miki AI 工作台 · 产品需求文档（PRD）</title>
+<style>
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --ink:#1f2329; --sub:#5b6472; --muted:#8a909c;
+  --line:#e5e6eb; --accent:#3370ff; --accent-d:#245bdb; --green:#1a7f37; --amber:#b9770a; --red:#d8392f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.75;-webkit-font-smoothing:antialiased}
+.wrap{max-width:920px;margin:0 auto;padding:40px 28px 80px}
+header.cover{background:linear-gradient(135deg,#3370ff,#5b8cff);color:#fff;border-radius:16px;
+  padding:36px 34px;box-shadow:0 10px 30px rgba(51,112,255,.25)}
+header.cover h1{margin:0;font-size:30px;font-weight:700;letter-spacing:.5px}
+header.cover .tag{margin-top:10px;font-size:14px;opacity:.92}
+header.cover .meta{margin-top:18px;display:flex;flex-wrap:wrap;gap:10px}
+header.cover .meta span{background:rgba(255,255,255,.18);padding:5px 12px;border-radius:20px;font-size:12.5px}
+h2{margin:46px 0 14px;font-size:21px;font-weight:700;padding-bottom:8px;border-bottom:2px solid var(--line)}
+h3{margin:28px 0 10px;font-size:17px;font-weight:600;color:var(--ink)}
+h4{margin:18px 0 8px;font-size:14.5px;font-weight:600;color:var(--sub)}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:22px}
+li{margin:6px 0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+th{background:#f3f5f8;color:var(--sub);font-weight:600}
+tr:last-child td{border-bottom:none}
+code{background:#eef0f3;padding:1px 6px;border-radius:5px;font-size:13px;color:#245bdb}
+.pill{display:inline-block;padding:1px 9px;border-radius:6px;font-size:12px;font-weight:600;margin-right:4px}
+.p0{background:#fdecea;color:var(--red)} .p1{background:#fff3e0;color:var(--amber)}
+.p2{background:#e8f0ff;color:var(--accent)} .done{background:#e6f4ea;color:var(--green)}
+.callout{background:#f3f7ff;border:1px solid #d6e4ff;border-left:4px solid var(--accent);
+  border-radius:8px;padding:12px 16px;margin:16px 0;font-size:14px;color:var(--sub)}
+.toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:24px 0}
+.toc h3{margin-top:0}
+.toc a{color:var(--accent);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+.toc ol{columns:2;column-gap:30px}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:8px 14px;font-size:14px}
+.kv div:nth-child(odd){color:var(--sub);font-weight:600}
+.section{scroll-margin-top:20px}
+.foot{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+@media print{body{background:#fff}.wrap{max-width:100%}header.cover{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="cover">
+  <h1>Miki AI 工作台</h1>
+  <div class="tag">产品需求文档（PRD） · 本地优先的个人运营中枢</div>
+  <div class="meta">
+    <span>版本 v0.1（草案）</span>
+    <span>创建 2026-08-13</span>
+    <span>作者 Kai × Miki</span>
+    <span>状态 待评审</span>
+  </div>
+</header>
+
+<div class="toc">
+  <h3>目录</h3>
+  <ol>
+    <li><a href="#s1">产品概述</a></li>
+    <li><a href="#s2">用户与场景</a></li>
+    <li><a href="#s3">功能需求</a></li>
+    <li><a href="#s4">策略设计（AI）</a></li>
+    <li><a href="#s5">非功能需求</a></li>
+    <li><a href="#s6">技术架构</a></li>
+    <li><a href="#s7">数据隐私与安全</a></li>
+    <li><a href="#s8">发布计划 / 路线图</a></li>
+    <li><a href="#s9">风险与开放问题</a></li>
+    <li><a href="#s10">成功指标</a></li>
+    <li><a href="#s11">附录</a></li>
+  </ol>
+</div>
+
+<div class="callout">
+  <b>文档定位：</b>本 PRD 将当前已交付的「本地可编辑工作台」定义为产品的 <b>MVP</b>，并据此补全产品愿景、功能边界与迭代路线图。
+  方法论参考 2026 年个人 AI 工作台主流范式（local-first 本地优先、记忆复利、四层架构）与标准 PRD 章节。
+</div>
+
+<!-- ========== 1 ========== -->
+<section class="section" id="s1">
+<h2>1. 产品概述</h2>
+
+<h3>1.1 产品定位与一句话价值</h3>
+<p><b>本地优先、AI 协作驱动的「个人运营中枢」</b>：把散落在对话、自动化任务、记忆、技能与每日亮点中的个人资产，统一收敛为可检索、可编辑、可沉淀的结构化工作台。</p>
+
+<h3>1.2 背景与痛点</h3>
+<p>Miki 处于自由职业起步期，三大方向为自媒体（纯图文 / AI 生成，不露脸不录音）、电商（轻资产）、AI 技术学习。当前个人资产高度碎片化：</p>
+<ul>
+  <li><b>信息散落</b>：定时任务在 <code>automations</code> 数据库、记忆在 <code>MEMORY.md</code>、技能在 <code>skills/</code> 目录、亮点在 <code>highlights.md</code>，彼此割裂。</li>
+  <li><b>缺乏沉淀</b>：对话产物用完即弃，难以回溯与复用。</li>
+  <li><b>整理耗时</b>：手动在多个文件 / 平台间搬运，打断心流。</li>
+  <li><b>飞书实时双向同步结构性不可行</b>：lark-cli 事件订阅不支持多维表格域、飞书记录无单条修改时间 → 无法做「实时回写 / 时间戳新者胜」→ 转向本地优先架构。</li>
+</ul>
+
+<h3>1.3 产品愿景</h3>
+<p>成为 Miki 的「<b>数字联合创始人</b>」：不止记录，更能主动组织、提醒、复用个人知识资产，随时间复利增值。对应 2026 年 AI workspace 范式的核心命题——<i>把注意力从「工具搬运」转向「意图执行」</i>。</p>
+
+<h3>1.4 核心价值（USP）</h3>
+<table>
+  <tr><th>差异化</th><th>说明</th></tr>
+  <tr><td>本地优先、隐私可控</td><td>仅绑定 127.0.0.1，不上云；数据始终在本人机器上。</td></tr>
+  <tr><td>与运行时同源</td><td>automations / MEMORY / skills / highlights 即真实数据源，编辑即写回，不存在「影子副本」。</td></tr>
+  <tr><td>误删可恢复</td><td>每次写操作前自动生成 <code>.bak</code> 备份。</td></tr>
+  <tr><td>零依赖轻量</td><td>Python 标准库 + 原生前端，双击 <code>.bat</code> 即可启动，启动资金几乎为 0。</td></tr>
+</table>
+
+<h3>1.5 目标平台</h3>
+<ul>
+  <li><b>MVP</b>：Windows 桌面（本地 HTTP 服务 + 浏览器），双击 bat 启动、用完关闭。</li>
+  <li><b>规划</b>：macOS / Linux 适配；移动端只读视图（v2.0）。</li>
+</ul>
+
+<h3>1.6 范围（In / Out of Scope）</h3>
+<table>
+  <tr><th>In Scope（当前）</th><th>Out of Scope（当前）</th></tr>
+  <tr><td>4 类资产的查看、搜索、筛选、编辑、删除、新增；本地写回与 <code>.bak</code> 备份</td><td>云端多端实时同步、多人协作、AI 自动生成内容、第三方平台（飞书 / 微信 / 电商后台）对接</td></tr>
+</table>
+</section>
+
+<!-- ========== 2 ========== -->
+<section class="section" id="s2">
+<h2>2. 用户与场景</h2>
+
+<h3>2.1 用户画像（Persona）</h3>
+<div class="kv">
+  <div>姓名 / 身份</div><div>Miki · 自由职业者（单人公司 / solopreneur）</div>
+  <div>方向</div><div>自媒体（幕后纯图文 / AI 生成）、电商（轻资产）、AI 技术学习</div>
+  <div>技能背景</div><div>技术 / 开发类，能读懂脚本，偏好务实干练</div>
+  <div>约束</div><div>启动资金 &lt; 5000；前 6 个月月入目标 5000–1 万；全部时间可投入</div>
+  <div>偏好</div><div>不露脸不录音、轻资产、本地优先、出镜意愿为零</div>
+</div>
+
+<h3>2.2 核心用户故事</h3>
+<ol>
+  <li>作为自由职业者，我想在一个地方看到今天 / 累计的定时任务、记忆、技能和亮点，<b>以便掌控全局</b>。</li>
+  <li>作为内容创作者，我想快速记录一条「决策 / 洞察」亮点，<b>以便日后复盘</b>。</li>
+  <li>作为技能使用者，我想修改某个 Skill 的中文说明，<b>以便自己和后续对话快速理解其用途</b>。</li>
+  <li>作为记忆管理者，我想删除一条过时的记忆小节，<b>以便保持知识库干净</b>。</li>
+  <li>作为单人运营，我希望所有改动都自动备份，<b>以便误删可恢复</b>。</li>
+</ol>
+
+<h3>2.3 用户旅程（主路径）</h3>
+<p>双击 <code>start-workbench.bat</code> → 浏览器自动打开工作台 → 切换 Tab / 搜索 / 按字段筛选 → 点「编辑」改字段或「删除」移除 → 用完点「关闭工作台」。</p>
+</section>
+
+<!-- ========== 3 ========== -->
+<section class="section" id="s3">
+<h2>3. 功能需求</h2>
+
+<h3>3.1 功能架构（模块地图）</h3>
+<table>
+  <tr><th>模块</th><th>职责</th><th>优先级</th><th>状态</th></tr>
+  <tr><td>M1 工作台视图（前端）</td><td>4 Tab 表格、搜索、筛选、行内编辑 / 删除操作列</td><td><span class="pill p0">P0</span></td><td><span class="pill done">已交付</span></td></tr>
+  <tr><td>M2 定时任务管理</td><td>查看 / 编辑（名称、状态）/ 软删除</td><td><span class="pill p0">P0</span></td><td><span class="pill done">已交付</span></td></tr>
+  <tr><td>M3 记忆管理</td><td>查看 / 编辑内容 / 删除 ## 小节</td><td><span class="pill p0">P0</span></td><td><span class="pill done">已交付</span></td></tr>
+  <tr><td>M4 技能管理</td><td>查看 / 编辑中文功能说明（禁用删除）</td><td><span class="pill p0">P0</span></td><td><span class="pill done">已交付</span></td></tr>
+  <tr><td>M5 每日亮点</td><td>新增 / 编辑 / 删除亮点条目</td><td><span class="pill p0">P0</span></td><td><span class="pill done">已交付</span></td></tr>
+  <tr><td>M6 数据写回与备份</td><td>写前生成 <code>.bak</code>，字段级最小改写</td><td><span class="pill p0">P0</span></td><td><span class="pill done">已交付</span></td></tr>
+  <tr><td>M7 安全与权限</td><td>仅本机绑定、关闭端点、无外部网络</td><td><span class="pill p0">P0</span></td><td><span class="pill done">已交付</span></td></tr>
+  <tr><td>M8 定时任务新建</td><td>在界面内创建自动化任务</td><td><span class="pill p1">P1</span></td><td>规划</td></tr>
+  <tr><td>M9 AI 自动亮点捕获</td><td>对话中主动识别并写入亮点</td><td><span class="pill p1">P1</span></td><td>规划</td></tr>
+  <tr><td>M10 跨平台 / 移动只读</td><td>macOS / Linux、手机查看</td><td><span class="pill p2">P2</span></td><td>规划</td></tr>
+</table>
+
+<h3>3.2 模块详述（用户故事 + 逻辑 + 验收）</h3>
+
+<h4>M1 工作台视图（P0 · 已交付）</h4>
+<ul>
+  <li><b>功能</b>：4 个 Tab（定时任务 / 记忆 / Skill / 每日亮点），顶部全文搜索，按字段下拉筛选，飞书风格表格，粘性表头（随头部高度自适应），每行统一的「编辑 / 删除」操作列。</li>
+  <li><b>验收</b>：① 4 分区数据正常加载并带数量徽标；② 搜索 / 筛选实时生效；③ 每个分区行尾均可见操作列。</li>
+</ul>
+
+<h4>M2 定时任务管理（P0 · 已交付）</h4>
+<ul>
+  <li><b>字段</b>：名称、状态（运行中 / 已暂停）、频率、说明、下次运行。</li>
+  <li><b>编辑</b>：名称（文本）、状态（下拉切换）。</li>
+  <li><b>删除</b>：软删除——置 <code>deleted_at</code>，视图隐藏但数据库可恢复。</li>
+  <li><b>验收</b>：改状态后数据库即时生效；删除后不再出现在视图；所有动作生成 <code>.bak</code>。</li>
+</ul>
+
+<h4>M3 记忆管理（P0 · 已交付）</h4>
+<ul>
+  <li><b>数据源</b>：全局 <code>~/.workbuddy/MEMORY.md</code> + 项目 <code>.workbuddy/memory/MEMORY.md</code> 的 <code>##</code> 小节。</li>
+  <li><b>编辑</b>：内容（多行文本，写回对应小节）。<b>删除</b>：移除整个 <code>##</code> 小节。</li>
+  <li><b>验收</b>：改写精确落盘对应 MEMORY.md；删除后小节消失；备份文件存在。</li>
+</ul>
+
+<h4>M4 技能管理（P0 · 已交付）</h4>
+<ul>
+  <li><b>数据源</b>：用户级 + 项目级 <code>skills/*/SKILL.md</code>。</li>
+  <li><b>编辑</b>：功能说明（写入 <code>skill_cn_override.json</code> 覆盖）。</li>
+  <li><b>删除</b>：<b>禁止</b>（删除技能目录风险高，误删难恢复）。UI 不显示删除按钮。</li>
+  <li><b>验收</b>：说明改动反映在 override 并重新加载生效；删除入口不存在。</li>
+</ul>
+
+<h4>M5 每日亮点（P0 · 已交付）</h4>
+<ul>
+  <li><b>格式</b>：<code>- [id=HL-...] [类型] 内容</code>；类型：决策 / 学习 / 洞察 / 任务 / 其他。</li>
+  <li><b>新增 / 编辑 / 删除</b>：均写回 <code>highlights.md</code>，删除移除对应行。</li>
+  <li><b>验收</b>：新增追加到文件末尾；改类型 / 内容写回；删除该行消失。</li>
+</ul>
+
+<h4>M6 数据写回与备份（P0 · 已交付）</h4>
+<ul>
+  <li><b>逻辑</b>：每次写前 <code>shutil.copy2</code> 生成 <code>.bak</code>；采用字段级最小改写（正则替换单行 / 小节），而非整文件重写。</li>
+  <li><b>验收</b>：任一写操作后，目标文件同目录存在对应 <code>.bak</code>。</li>
+</ul>
+
+<h3>3.3 优先级（MoSCoW）</h3>
+<table>
+  <tr><th>层级</th><th>内容</th></tr>
+  <tr><td>Must（必须有）</td><td>M1–M7 当前能力（4 分区增改删查 + 备份）</td></tr>
+  <tr><td>Should（应该有）</td><td>M8 定时任务新建、亮点按日期排序 / 筛选增强、空状态引导、记忆合并去重</td></tr>
+  <tr><td>Could（可以有）</td><td>M9 AI 自动亮点捕获、M10 跨平台 / 移动只读、明暗主题切换、数据导出</td></tr>
+  <tr><td>Won't（本期不做）</td><td>云端实时同步、多人协作、第三方平台深度对接</td></tr>
+</table>
+</section>
+
+<!-- ========== 4 ========== -->
+<section class="section" id="s4">
+<h2>4. 策略设计（AI 部分）</h2>
+<p>作为 AI 工作台，核心策略需显式说明输入信号、模型逻辑、输出形式与兜底规则（参照 PRD 写作规范）。</p>
+
+<h4>策略 A：每日亮点捕获</h4>
+<ul>
+  <li><b>输入信号</b>：对话中出现的决策、洞察、学习方法、待办、其他有价值片段。</li>
+  <li><b>逻辑</b>：AI 主动识别片段类型 → 生成带 <code>id</code> 与类型的结构化行 → 追加到 <code>highlights.md</code>。</li>
+  <li><b>输出</b>：<code>highlights.md</code> 新行；工作台「每日亮点」Tab 立即可见。</li>
+  <li><b>兜底</b>：识别不确定时仅做人工手动新增，不臆造内容；每日上限保护避免刷屏。</li>
+</ul>
+
+<h4>策略 B：记忆沉淀</h4>
+<ul>
+  <li><b>输入信号</b>：会话结束后的关键结论、用户偏好、项目约定。</li>
+  <li><b>逻辑</b>：AI 摘要 → 按主题写入全局 / 项目 MEMORY.md 的 <code>##</code> 小节（复用 M3 写回通道）。</li>
+  <li><b>冷启动</b>：初始为空，随使用自然增长；不预填噪音。</li>
+  <li><b>兜底</b>：写入前与现有小节去重合并，避免重复条目。</li>
+</ul>
+</section>
+
+<!-- ========== 5 ========== -->
+<section class="section" id="s5">
+<h2>5. 非功能需求</h2>
+<table>
+  <tr><th>维度</th><th>要求</th></tr>
+  <tr><td>性能</td><td>本地单用户；页面首屏 &lt; 1s；写入（含备份）&lt; 200ms；数据量百级条目无感知延迟。</td></tr>
+  <tr><td>安全</td><td>仅绑定 127.0.0.1，无外部网络暴露；写前备份；密钥走环境变量，不落明文文件；提供 <code>/api/shutdown</code> 关闭端点。</td></tr>
+  <tr><td>兼容性</td><td>Windows 10+ / Python 3.11+ / 现代浏览器（Chromium 内核）；规划 macOS / Linux。</td></tr>
+  <tr><td>可靠性</td><td><code>.bak</code> 兜底；端口自动顺延（<code>find_free_port</code>）避免冲突；<code>pythonw</code> 无黑窗启动。</td></tr>
+  <tr><td>可维护性</td><td>后端纯标准库、前端单文件无构建；数据源（真源文件）与视图（前端）严格分离，便于替换 UI 而不动写回层。</td></tr>
+</table>
+</section>
+
+<!-- ========== 6 ========== -->
+<section class="section" id="s6">
+<h2>6. 技术架构</h2>
+
+<h3>6.1 总体架构（四层，对齐 2026 AI workspace 范式）</h3>
+<table>
+  <tr><th>层</th><th>职责</th><th>当前实现</th></tr>
+  <tr><td>交互层 Interaction Surface</td><td>一致的操作用户界面（查看 / 编辑 / 删除 / 审批）</td><td><code>workbench_app.html</code>（飞书风格表格）</td></tr>
+  <tr><td>能力适配层 Capability Adapters</td><td>采集 + 写回真实数据源的薄适配层</td><td><code>workbench_server.py</code>（HTTP 写回层）</td></tr>
+  <tr><td>记忆 / 知识层 Memory Store</td><td>版本化、可检索、可审计的个人上下文</td><td>automations 库 / MEMORY.md / skills / highlights.md</td></tr>
+  <tr><td>执行内核 Execution Kernel</td><td>调度 agent、执行策略、持久化状态</td><td>由 WorkBuddy 运行时提供（对话 + automations 调度）</td></tr>
+</table>
+<div class="callout">说明：v1 已覆盖交互层 + 能力适配层 + 记忆层；执行内核由 WorkBuddy 运行时承载，工作台作为「可观察 / 可干预的控制面」与之协同。未来 M9 自动沉淀将让执行内核的产出更主动地回流到记忆层，形成<b>「执行 → 沉淀 → 复用」闭环</b>。</div>
+
+<h3>6.2 技术栈</h3>
+<ul>
+  <li>后端：Python 3.11 标准库（<code>http.server</code> / <code>sqlite3</code> / <code>re</code> / <code>json</code> / <code>shutil</code>）。</li>
+  <li>前端：原生 HTML / CSS / JS 单文件，无框架、无构建。</li>
+  <li>启动：<code>.bat</code> + <code>pythonw</code>（无黑窗）+ 自动打开浏览器。</li>
+</ul>
+
+<h3>6.3 数据模型</h3>
+<table>
+  <tr><th>实体</th><th>主键</th><th>关键字段</th><th>真源</th></tr>
+  <tr><td>定时任务</td><td><code>id</code></td><td>名称 / 状态 / 频率 / 说明 / 下次运行</td><td>automations 数据库</td></tr>
+  <tr><td>记忆</td><td>主题（全局·/项目·标题）</td><td>主题 / 内容 / 来源</td><td>MEMORY.md ## 小节</td></tr>
+  <tr><td>技能</td><td>路径</td><td>名称 / 位置 / 功能说明 / 路径</td><td>skills/*/SKILL.md + override</td></tr>
+  <tr><td>每日亮点</td><td><code>id</code>（HL-时间戳）</td><td>类型 / 日期 / 内容</td><td>highlights.md</td></tr>
+</table>
+
+<h3>6.4 接口契约</h3>
+<table>
+  <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+  <tr><td>GET</td><td><code>/</code></td><td>返回飞书风格前端</td></tr>
+  <tr><td>GET</td><td><code>/api/data</code></td><td>返回 4 类数据 + 计数 + 可筛选维度</td></tr>
+  <tr><td>POST</td><td><code>/api/update</code></td><td>单字段更新</td></tr>
+  <tr><td>POST</td><td><code>/api/update_multi</code></td><td>批量多字段更新（一次编辑弹窗改多项）</td></tr>
+  <tr><td>POST</td><td><code>/api/add</code></td><td>新增每日亮点</td></tr>
+  <tr><td>POST</td><td><code>/api/delete</code></td><td>删除（亮点 / 定时任务软删 / 记忆小节；技能禁用）</td></tr>
+  <tr><td>POST</td><td><code>/api/shutdown</code></td><td>关闭本地服务</td></tr>
+</table>
+</section>
+
+<!-- ========== 7 ========== -->
+<section class="section" id="s7">
+<h2>7. 数据隐私与安全</h2>
+<ul>
+  <li><b>本地优先</b>：所有个人数据存于本机文件与本地 SQLite，不上传任何云端。</li>
+  <li><b>网络边界</b>：服务仅监听 <code>127.0.0.1</code>，外部不可访问。</li>
+  <li><b>密钥隔离</b>：第三方凭证走环境变量，不写入工作台管理的任何文件。</li>
+  <li><b>可恢复性</b>：写前 <code>.bak</code> + 定时任务软删除，误删可在备份中恢复。</li>
+  <li><b>最小权限</b>：Skill 删除禁用，避免误删技能文件导致能力丢失。</li>
+</ul>
+</section>
+
+<!-- ========== 8 ========== -->
+<section class="section" id="s8">
+<h2>8. 发布计划 / 路线图</h2>
+<table>
+  <tr><th>阶段</th><th>范围</th><th>状态</th></tr>
+  <tr><td><b>MVP</b>（2026-08）</td><td>本地可编辑工作台：4 分区增 / 改 / 删 / 查 + 搜索 / 筛选 + 自动备份</td><td><span class="pill done">已交付</span></td></tr>
+  <tr><td>v1.1</td><td>M8 定时任务新建；亮点按日期排序与筛选增强；空状态引导文案</td><td>规划</td></tr>
+  <tr><td>v1.5</td><td>M9 AI 自动亮点捕获；会话结束记忆沉淀；记忆合并去重</td><td>规划</td></tr>
+  <tr><td>v2.0</td><td>M10 跨平台（macOS / Linux）；移动端只读视图；数据导出（Markdown / JSON）</td><td>探索</td></tr>
+  <tr><td>v3.0（探索）</td><td>可选云端加密同步；技能市场；模板化工作流编排</td><td>探索</td></tr>
+</table>
+</section>
+
+<!-- ========== 9 ========== -->
+<section class="section" id="s9">
+<h2>9. 风险与开放问题</h2>
+<h3>9.1 风险点</h3>
+<table>
+  <tr><th>风险</th><th>等级</th><th>缓解</th></tr>
+  <tr><td>前端单文件无构建，复杂功能难扩展</td><td>中</td><td>视图与写回层解耦；后续可框架化（不影响后端）</td></tr>
+  <tr><td>写回真源文件可能破坏结构</td><td>中</td><td><code>.bak</code> + 字段级最小改写；变更前备份</td></tr>
+  <tr><td>Skill 删除禁用，用户可能困惑</td><td>低</td><td>UI 文案说明「为避免误删文件不支持删除」</td></tr>
+  <tr><td>端口冲突导致起不来</td><td>低</td><td><code>find_free_port</code> 自动顺延；地址写入 <code>workbench_addr.txt</code></td></tr>
+</table>
+<h3>9.2 开放问题（待 Miki 决策）</h3>
+<ul>
+  <li><b>云端同步</b>：是否要做「本地为主 + 可选加密云端同步」？隐私 vs 多端便利的权衡。</li>
+  <li><b>产品化路径</b>：仅个人自用，还是做成人人可装的开源 / 轻量 SaaS？</li>
+  <li><b>商业模式</b>：若产品化，采用买断 / 订阅 / 开源捐赠？</li>
+  <li><b>AI 主动度</b>：自动捕获亮点的「打扰阈值」设多高？（默认保守，仅人工触发）</li>
+</ul>
+</section>
+
+<!-- ========== 10 ========== -->
+<section class="section" id="s10">
+<h2>10. 成功指标</h2>
+<table>
+  <tr><th>维度</th><th>指标</th><th>目标</th></tr>
+  <tr><td>使用率</td><td>每日打开次数、活跃分区数</td><td>工作日日均打开 ≥ 1 次</td></tr>
+  <tr><td>资产增长</td><td>亮点 / 记忆条目月净增</td><td>连续 3 个月正增长</td></tr>
+  <tr><td>可靠性</td><td>写回成功率、误删恢复率</td><td>均 100%</td></tr>
+  <tr><td>心流</td><td>手动在文件间搬运整理的时间</td><td>较使用前下降 ≥ 50%</td></tr>
+</table>
+</section>
+
+<!-- ========== 11 ========== -->
+<section class="section" id="s11">
+<h2>11. 附录</h2>
+<h4>术语表</h4>
+<ul>
+  <li><b>MVP</b>：最小可行产品（Minimum Viable Product）。</li>
+  <li><b>USP</b>：独特卖点（Unique Selling Proposition）。</li>
+  <li><b>HITL</b>：人在回路（Human-in-the-loop），关键决策保留人工干预。</li>
+  <li><b>Local-first</b>：本地优先，数据先落本机、可离线、隐私可控。</li>
+  <li><b>软删除</b>：逻辑删除（置标记），不物理移除，便于恢复。</li>
+</ul>
+<h4>参考与依据</h4>
+<ul>
+  <li>现有实现：<code>workbench_server.py</code>、<code>workbench_app.html</code>、<code>start-workbench.bat</code>。</li>
+  <li>2026 个人 AI 工作台趋势：local-first、「文件即工作台」、OpenClaw 范式（Soul/Memory/Tool/Identity/User + Skills + Cron，「能力匹配-执行-沉淀-优化」闭环）。</li>
+  <li>标准 PRD 结构（文档信息 / 产品概述 / 用户与场景 / 功能需求 / 非功能需求 / 技术架构 / 数据 / 风险 / 里程碑 / 成功指标 / 附录）。</li>
+</ul>
+</section>
+
+<div class="foot">
+  本文档为草案，版本 v0.1，创建于 2026-08-13，作者 Kai × Miki。可直接打印为 PDF 归档。
+  关联的已交付代码位于 <code>.workbuddy/workbench/</code>。
+</div>
+
+</div>
+</body>
+</html>

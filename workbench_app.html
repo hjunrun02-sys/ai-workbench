@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 工作台</title>
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#f7f8fa; --card:#ffffff; --border:#e5e6eb; --border2:#d6d8de;
+  --text:#1f2329; --muted:#8a909c; --accent:#3370ff; --accent-d:#245bdb;
+  --warn:#ff8800; --danger:#f54a45; --danger-d:#d8392f;
+  --hover:#f2f3f5; --sel:#e8f0ff; --zebra:#fafbfc;
+  --thead-top:120px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:13px;line-height:1.55}
+/* ===== 头部 ===== */
+header{position:sticky;top:0;z-index:40;background:#fff;
+  border-bottom:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.head-inner{max-width:1240px;margin:0 auto;padding:14px 22px}
+h1{margin:0;font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px;letter-spacing:.3px}
+h1 .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);display:inline-block;box-shadow:0 0 0 3px rgba(51,112,255,.15)}
+.sub{color:var(--muted);font-size:12px;margin-top:4px}
+.bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.search{flex:1;min-width:220px;padding:8px 14px;border-radius:8px;border:1px solid var(--border2);
+  background:#fff;color:var(--text);font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}
+.search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(51,112,255,.12)}
+.search::placeholder{color:#b6bbc4}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{padding:7px 16px;border-radius:8px;border:1px solid var(--border);background:#fff;
+  color:var(--muted);cursor:pointer;font-size:13px;user-select:none;transition:.15s;display:flex;align-items:center;gap:6px}
+.tab:hover{color:var(--text);border-color:var(--border2)}
+.tab .cnt{font-size:11px;background:var(--panel);color:var(--muted);border-radius:10px;padding:1px 7px}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tab.active .cnt{background:rgba(255,255,255,.25);color:#fff}
+.filterrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.filterrow .flabel{color:var(--muted);font-size:12px}
+.fsel{padding:6px 10px;border-radius:7px;border:1px solid var(--border2);background:#fff;
+  color:var(--text);font-size:13px;outline:none;cursor:pointer}
+.fsel:focus{border-color:var(--accent)}
+/* ===== 主体 ===== */
+.wrap{max-width:1240px;margin:0 auto;padding:18px 22px 48px}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+.toolbar .spacer{flex:1}
+.tablecard{background:var(--card);border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 1px 4px rgba(0,0,0,.04)}
+table.bitable{width:100%;border-collapse:collapse;font-size:13px}
+.bitable thead th{position:sticky;top:var(--thead-top);background:#fbfbfc;color:var(--muted);
+  font-weight:600;text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);
+  white-space:nowrap;z-index:5;font-size:12px;letter-spacing:.3px}
+.bitable tbody td{padding:13px 14px;border-bottom:1px solid var(--border);vertical-align:top;
+  color:var(--text);max-width:420px}
+.bitable tbody tr:last-child td{border-bottom:none}
+.bitable tbody tr:nth-child(even){background:var(--zebra)}
+/* 去掉卡片 overflow 后，手动补全四角圆角 */
+.bitable thead th:first-child{border-top-left-radius:12px}
+.bitable thead th:last-child{border-top-right-radius:12px}
+.bitable tbody tr:last-child td:first-child{border-bottom-left-radius:12px}
+.bitable tbody tr:last-child td:last-child{border-bottom-right-radius:12px}
+.bitable tbody tr:hover{background:var(--hover)}
+.cell-text{white-space:pre-wrap;word-break:break-word;line-height:1.6}
+.ed{cursor:pointer;border-radius:6px;outline:1px dashed transparent;transition:.12s}
+.ed:hover{outline-color:var(--accent);background:var(--sel)}
+.badge{display:inline-block;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:500}
+.badge.运行中{color:#1a7f37;background:#e6f4ea}
+.badge.已暂停{color:var(--warn);background:#fff3e0}
+.badge.决策{color:#1a7f37;background:#e6f4ea}
+.badge.学习{color:var(--accent);background:#e8f0ff}
+.badge.洞察{color:#8a3ffc;background:#f1e9ff}
+.badge.任务{color:var(--warn);background:#fff3e0}
+.badge.其他,.badge.用户级,.badge.项目级{color:var(--muted);background:#eef0f3}
+.path{font-size:11px;color:var(--muted);word-break:break-all;margin-top:5px}
+/* 操作列 */
+.opcell{white-space:nowrap;width:1%}
+.opcell .btn{margin-right:6px}
+.opcell .btn:last-child{margin-right:0}
+.btn{border:1px solid var(--border2);background:#fff;color:var(--text);border-radius:7px;
+  padding:5px 12px;cursor:pointer;font-size:12px;transition:.15s;font-family:inherit}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.sm{padding:4px 11px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-d);border-color:var(--accent-d);color:#fff}
+.btn.ghost{background:#fff;color:var(--muted);border-color:var(--border)}
+.btn.ghost:hover{color:var(--danger);border-color:#f3c2c0}
+.btn.danger{color:var(--danger);border-color:#f3c2c0}
+.btn.danger:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+.empty{padding:54px 20px;text-align:center;color:var(--muted);font-size:14px}
+/* ===== 浮层 / 弹窗 ===== */
+.overlay{position:fixed;inset:0;background:rgba(20,22,28,.4);display:none;align-items:center;
+  justify-content:center;z-index:100;backdrop-filter:blur(2px)}
+.modal{background:#fff;border-radius:14px;padding:20px;width:min(600px,92vw);
+  box-shadow:0 16px 48px rgba(0,0,0,.22);max-height:86vh;overflow:auto;animation:pop .16s ease}
+@keyframes pop{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+.modal h3{margin:0 0 14px;font-size:16px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.modal .x{cursor:pointer;color:var(--muted);font-size:20px;line-height:1;width:26px;height:26px;
+  display:flex;align-items:center;justify-content:center;border-radius:6px}
+.modal .x:hover{background:var(--hover);color:var(--text)}
+.modal .flabel{color:var(--muted);font-size:12px;margin:12px 0 5px;font-weight:500}
+.modal .flabel:first-child{margin-top:0}
+.mctrl{width:100%;padding:9px 11px;border:1px solid var(--border2);border-radius:8px;font-size:13px;
+  font-family:inherit;outline:none;resize:vertical;color:var(--text);background:#fff;transition:.15s}
+textarea.mctrl{min-height:110px;line-height:1.6}
+.mctrl:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(51,112,255,.12)}
+.modal .row{display:flex;gap:10px;margin-top:18px;justify-content:flex-end}
+.modal .hint{color:var(--muted);font-size:11px;margin-top:10px;line-height:1.5}
+/* ===== toast ===== */
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#1f2329;color:#fff;
+  padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .25s;z-index:200;
+  max-width:82vw;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.toast.show{opacity:.96}
+.toast .fp{color:#7fd18b}
+footer{padding:16px 22px;color:var(--muted);font-size:12px;max-width:1240px;margin:0 auto;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <div class="head-inner">
+    <h1><span class="dot"></span> AI 工作台</h1>
+    <div class="sub">本地可编辑视图 · 编辑 / 删除真实改写本地文件（写前自动备份 .bak） · 仅本机访问</div>
+    <div class="bar">
+      <input class="search" id="search" placeholder="搜索任务 / 记忆 / Skill / 亮点…" oninput="onSearch()">
+      <div class="tabs" id="tabs"></div>
+    </div>
+    <div class="filterrow" id="filters"></div>
+  </div>
+</header>
+<div class="wrap">
+  <div class="toolbar" id="toolbar"></div>
+  <div class="tablecard"><div id="tableHost"></div></div>
+</div>
+<footer>数据来源：automations 数据库、MEMORY.md（全局+项目）、skills、highlights.md。修改/删除会写回这些文件本身并生成备份。</footer>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3><span id="mTitle">编辑</span><span class="x" onclick="closeEditor()">×</span></h3>
+    <div id="mBody"></div>
+    <div class="hint" id="mHint"></div>
+    <div class="row">
+      <button class="btn ghost" onclick="closeEditor()">取消</button>
+      <button class="btn primary" id="saveBtn" onclick="onSave()">保存</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SECTIONS = [
+  {key:"automations", label:"定时任务"},
+  {key:"memory",      label:"记忆"},
+  {key:"skills",      label:"Skill"},
+  {key:"highlights",  label:"每日亮点"},
+];
+const COLS = {
+  automations:[
+    {key:"名称", edit:"text"},
+    {key:"状态", edit:"select", opts:["运行中","已暂停"]},
+    {key:"频率", edit:null},
+    {key:"说明", edit:null},
+    {key:"下次运行", edit:null},
+  ],
+  memory:[
+    {key:"主题", edit:null},
+    {key:"内容", edit:"area"},
+    {key:"来源", edit:null},
+  ],
+  skills:[
+    {key:"名称", edit:null},
+    {key:"位置", edit:null},
+    {key:"功能说明", edit:"area"},
+    {key:"路径", edit:null},
+  ],
+  highlights:[
+    {key:"类型", edit:"select", opts:["决策","学习","洞察","任务","其他"]},
+    {key:"日期", edit:null},
+    {key:"内容", edit:"area"},
+  ],
+};
+// 哪些分区允许删除（Skill 涉及文件，不做删除以防误删）
+const CAN_DELETE = {automations:true, memory:true, skills:false, highlights:true};
+
+let DATA={}, COUNTS={}, FILTERS={};
+let activeKey=SECTIONS[0].key, query="", activeFilters={};
+let editCtx=null;
+
+function el(tag,cls,t){const e=document.createElement(tag);if(cls)e.className=cls;if(t!=null)e.textContent=t;return e;}
+function badgeClass(t){return (['决策','学习','洞察','任务','运行中','已暂停','用户级','项目级'].includes(t))?t:'其他';}
+function sectionLabel(k){return (SECTIONS.find(s=>s.key===k)||{}).label||k;}
+function editFieldsFor(sec){return (COLS[sec]||[]).filter(c=>c.edit).map(c=>({key:c.key,edit:c.edit,opts:c.opts}));}
+
+// 头部高度变化时，重算表头 sticky 偏移
+function syncTheadTop(){
+  const h=document.querySelector('header').getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--thead-top', h+'px');
+}
+
+async function load(){
+  const r=await fetch('/api/data'); const j=await r.json();
+  DATA=j.data; COUNTS=j.counts; FILTERS=j.filters;
+  buildTabs(); buildFilters(); buildToolbar(); render(); syncTheadTop();
+}
+function buildTabs(){
+  const t=document.getElementById('tabs'); t.innerHTML='';
+  SECTIONS.forEach(s=>{
+    const d=el('div','tab'+(s.key===activeKey?' active':''));
+    d.appendChild(document.createTextNode(s.label+' '));
+    d.appendChild(el('span','cnt',(COUNTS[s.key]||0)));
+    d.onclick=()=>{activeKey=s.key;query='';activeFilters={};document.getElementById('search').value='';buildTabs();buildFilters();buildToolbar();render();};
+    t.appendChild(d);
+  });
+}
+function buildFilters(){
+  const b=document.getElementById('filters'); b.innerHTML='';
+  const dims=FILTERS[activeKey]||[];
+  if(!dims.length){b.appendChild(el('span','flabel','（本页仅支持顶部搜索）'));return;}
+  dims.forEach(d=>{
+    b.appendChild(el('span','flabel',d.label+'：'));
+    const sel=document.createElement('select'); sel.className='fsel';
+    const o0=document.createElement('option'); o0.value='__all__';o0.textContent='全部'; sel.appendChild(o0);
+    d.values.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
+    sel.value=activeFilters[d.field]||'__all__';
+    sel.onchange=()=>{if(sel.value==='__all__')delete activeFilters[d.field];else activeFilters[d.field]=sel.value;render();};
+    b.appendChild(sel);
+  });
+}
+function buildToolbar(){
+  const tb=document.getElementById('toolbar'); tb.innerHTML='';
+  const sp=el('div','spacer'); tb.appendChild(sp);
+  const addBtn={
+    highlights:{label:'+ 新增亮点', fn:openAdd},
+    automations:{label:'+ 新建定时任务', fn:openAddAutomation},
+  }[activeKey];
+  if(addBtn){ const b=el('button','btn primary',addBtn.label); b.onclick=addBtn.fn; tb.appendChild(b); }
+  const close=el('button','btn ghost','关闭工作台');
+  close.onclick=async()=>{
+    if(confirm('确定关闭本地工作台服务？关闭后需重新双击桌面「start-workbench.bat」才能再编辑。')){
+      try{ await fetch('/api/shutdown',{method:'POST'}); }catch(e){}
+      document.body.innerHTML='<div style="padding:60px;color:#9aa0a6;font-size:15px;line-height:1.9;text-align:center">工作台已关闭。<br>需要再次使用时，双击桌面上的 <b>start-workbench.bat</b> 即可重新打开。</div>';
+    }
+  };
+  tb.appendChild(close);
+}
+function filtered(){
+  let items=DATA[activeKey]||[];
+  for(const f in activeFilters){
+    const v=activeFilters[f];
+    if(f==='__date_range__'){
+      if(v==='近7天'||v==='近30天'){
+        const cut=new Date(); cut.setDate(cut.getDate()-(v==='近7天'?7:30));
+        const cs=cut.toISOString().slice(0,10);
+        items=items.filter(it=>(it['日期']||'')>=cs);
+      }
+      continue;
+    }
+    items=items.filter(it=>(it[f]||'')===v);
+  }
+  if(query){const q=query.toLowerCase();items=items.filter(it=>JSON.stringify(it).toLowerCase().includes(q));}
+  if(activeKey==='highlights'){ items=items.slice().sort((a,b)=>(b['日期']||'').localeCompare(a['日期']||'')); }
+  return items;
+}
+function emptMsg(){
+  if(query||Object.keys(activeFilters).length) return '没有匹配的内容';
+  const g={
+    automations:'（暂无定时任务）点击右上角「+ 新建定时任务」创建',
+    memory:'（暂无记忆小节）去对应 MEMORY.md 添加 ## 小节',
+    skills:'（暂无 Skill）',
+    highlights:'（暂无亮点）点击右上角「+ 新增亮点」添加',
+  };
+  return g[activeKey]||'（暂无内容）';
+}
+function render(){
+  const host=document.getElementById('tableHost'); host.innerHTML='';
+  const items=filtered();
+  if(!items.length){host.appendChild(el('div','empty',emptMsg()));return;}
+  const cols=COLS[activeKey];
+  const table=el('table','bitable');
+  const thead=el('thead'); const trh=el('tr');
+  cols.forEach(c=>trh.appendChild(el('th',null,c.key)));
+  trh.appendChild(el('th','opcell','操作'));
+  thead.appendChild(trh); table.appendChild(thead);
+  const tb=el('tbody');
+  items.forEach(it=>{
+    const tr=el('tr');
+    cols.forEach(c=>{
+      const td=el('td');
+      const val=it[c.key];
+      if(c.edit==='select' || c.key==='状态'){
+        td.appendChild(el('span','badge '+badgeClass(val),val));
+        attachEdit(td,it,c,val);
+      } else if(c.edit){
+        td.appendChild(el('div','cell-text',val));
+        td.classList.add('ed'); attachEdit(td,it,c,val);
+      } else {
+        if(c.key==='路径'){td.appendChild(el('div','cell-text',val));td.appendChild(el('div','path',val));}
+        else td.appendChild(el('div','cell-text',val));
+      }
+      tr.appendChild(td);
+    });
+    // 操作列
+    const op=el('td','opcell');
+    const bEdit=el('button','btn sm','编辑'); bEdit.onclick=()=>openRowEditor(it); op.appendChild(bEdit);
+    if(CAN_DELETE[activeKey]){
+      const bDel=el('button','btn sm danger','删除'); bDel.onclick=()=>delItem(it.id); op.appendChild(bDel);
+    }
+    tr.appendChild(op);
+    tb.appendChild(tr);
+  });
+  table.appendChild(tb); host.appendChild(table);
+  syncTheadTop();   // 切 Tab 时筛选栏高度会变，重算表头 sticky 偏移
+}
+function attachEdit(td,it,c,val){
+  td.onclick=(e)=>{ if(e.target.tagName==='BUTTON')return; openEditor(it,c,val); };
+}
+function openEditor(it,c,val){
+  editCtx={multi:false, id:it.id, field:c.key, type:c.edit, opts:c.opts};
+  document.getElementById('mTitle').textContent='编辑：'+c.key;
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  let ctrl;
+  if(c.edit==='select'){
+    ctrl=document.createElement('select'); ctrl.className='mctrl';
+    c.opts.forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;ctrl.appendChild(op);});
+    ctrl.value=val;
+  } else if(c.edit==='area'){
+    ctrl=document.createElement('textarea'); ctrl.className='mctrl'; ctrl.value=val;
+  } else {
+    ctrl=document.createElement('input'); ctrl.className='mctrl'; ctrl.value=val;
+  }
+  body.appendChild(ctrl);
+  document.getElementById('mHint').textContent='保存后将真实改写对应配置文件，并生成 .bak 备份。';
+  document.getElementById('overlay').style.display='flex';
+  setTimeout(()=>ctrl.focus(),30);
+}
+function openRowEditor(it){
+  const fields=editFieldsFor(activeKey);
+  editCtx={multi:true, id:it.id, fields};
+  document.getElementById('mTitle').textContent='编辑：'+sectionLabel(activeKey);
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  fields.forEach(f=>{
+    body.appendChild(el('div','flabel',f.key));
+    let ctrl;
+    if(f.edit==='select'){
+      ctrl=document.createElement('select'); ctrl.className='mctrl';
+      f.opts.forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;ctrl.appendChild(op);});
+      ctrl.value=it[f.key]||'';
+    } else if(f.edit==='area'){
+      ctrl=document.createElement('textarea'); ctrl.className='mctrl'; ctrl.value=it[f.key]||'';
+    } else {
+      ctrl=document.createElement('input'); ctrl.className='mctrl'; ctrl.value=it[f.key]||'';
+    }
+    ctrl.dataset.key=f.key; body.appendChild(ctrl);
+  });
+  document.getElementById('mHint').textContent='可一次修改多个字段；保存后真实改写配置文件并生成 .bak 备份。';
+  document.getElementById('overlay').style.display='flex';
+  setTimeout(()=>{const f=body.querySelector('.mctrl'); if(f)f.focus();},30);
+}
+function openAdd(){
+  editCtx={add:true};
+  document.getElementById('mTitle').textContent='新增每日亮点';
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  const sel=document.createElement('select'); sel.id='mType'; sel.className='mctrl';
+  ['决策','学习','洞察','任务','其他'].forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;sel.appendChild(op);});
+  const ta=document.createElement('textarea'); ta.id='mContent'; ta.className='mctrl'; ta.placeholder='亮点内容…';
+  body.appendChild(el('div','flabel','类型')); body.appendChild(sel);
+  body.appendChild(el('div','flabel','内容')); body.appendChild(ta);
+  document.getElementById('mHint').textContent='将追加到 highlights.md 并生成 .bak 备份。';
+  document.getElementById('overlay').style.display='flex';
+  setTimeout(()=>ta.focus(),30);
+}
+function openAddAutomation(){
+  editCtx={addAuto:true};
+  document.getElementById('mTitle').textContent='新建定时任务';
+  const body=document.getElementById('mBody'); body.innerHTML='';
+  body.appendChild(el('div','flabel','名称'));
+  const name=document.createElement('input'); name.id='aName'; name.className='mctrl'; name.placeholder='如：每日 AI 新闻推送'; body.appendChild(name);
+  body.appendChild(el('div','flabel','说明（任务要做什么）'));
+  const prompt=document.createElement('textarea'); prompt.id='aPrompt'; prompt.className='mctrl'; prompt.placeholder='给自动化的一句话任务描述…'; body.appendChild(prompt);
+  body.appendChild(el('div','flabel','频率'));
+  const ftype=document.createElement('select'); ftype.id='aFtype'; ftype.className='mctrl';
+  ['每日','每周','每月','一次性'].forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;ftype.appendChild(op);});
+  ftype.onchange=toggleFreq; body.appendChild(ftype);
+  // 时间（每日/每周/每月）
+  const tl=document.createElement('div'); tl.className='flabel'; tl.id='aTimeLabel'; tl.textContent='时间'; body.appendChild(tl);
+  const time=document.createElement('input'); time.id='aTime'; time.type='time'; time.className='mctrl'; time.value='09:00'; body.appendChild(time);
+  // 星期（每周）
+  const wdWrap=document.createElement('div'); wdWrap.id='aWdWrap';
+  wdWrap.appendChild(el('div','flabel','星期'));
+  const wd=document.createElement('select'); wd.id='aWday'; wd.className='mctrl';
+  ['周一','周二','周三','周四','周五','周六','周日'].forEach((o,i)=>{const op=document.createElement('option');op.value=['MO','TU','WE','TH','FR','SA','SU'][i];op.textContent=o;wd.appendChild(op);});
+  wdWrap.appendChild(wd); body.appendChild(wdWrap);
+  // 每月几号（每月）
+  const mdWrap=document.createElement('div'); mdWrap.id='aMdWrap';
+  mdWrap.appendChild(el('div','flabel','每月几号（1-28）'));
+  const md=document.createElement('input'); md.id='aMday'; md.type='number'; md.min=1; md.max=28; md.value=1; md.className='mctrl'; mdWrap.appendChild(md); body.appendChild(mdWrap);
+  // 一次性日期时间
+  const onceWrap=document.createElement('div'); onceWrap.id='aOnceWrap';
+  onceWrap.appendChild(el('div','flabel','执行时间'));
+  const once=document.createElement('input'); once.id='aOnce'; once.type='datetime-local'; once.className='mctrl'; onceWrap.appendChild(once); body.appendChild(onceWrap);
+  // 状态
+  body.appendChild(el('div','flabel','状态'));
+  const st=document.createElement('select'); st.id='aStatus'; st.className='mctrl';
+  ['运行中','已暂停'].forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;st.appendChild(op);});
+  body.appendChild(st);
+  document.getElementById('mHint').textContent='将写入 automations 数据库（与运行时同源），并生成 .bak 备份。新建后由 WorkBuddy 调度执行。';
+  document.getElementById('overlay').style.display='flex';
+  setTimeout(()=>name.focus(),30);
+  toggleFreq();
+}
+function toggleFreq(){
+  const t=document.getElementById('aFtype').value;
+  document.getElementById('aTime').style.display=(t==='一次性')?'none':'';
+  document.getElementById('aTimeLabel').style.display=(t==='一次性')?'none':'';
+  document.getElementById('aWdWrap').style.display=(t==='每周')?'':'none';
+  document.getElementById('aMdWrap').style.display=(t==='每月')?'':'none';
+  document.getElementById('aOnceWrap').style.display=(t==='一次性')?'':'none';
+}
+async function saveAddAutomation(){
+  const ftype=document.getElementById('aFtype').value;
+  const payload={name:document.getElementById('aName').value.trim(),
+    prompt:document.getElementById('aPrompt').value.trim(), ftype,
+    status:document.getElementById('aStatus').value};
+  if(!payload.name){toast('名称不能为空',true);return;}
+  if(!payload.prompt){toast('说明不能为空',true);return;}
+  if(ftype==='一次性'){
+    payload.scheduled_at=document.getElementById('aOnce').value||null;
+    if(!payload.scheduled_at){toast('请选择执行时间',true);return;}
+  } else {
+    const tv=document.getElementById('aTime').value||'09:00'; const sp=tv.split(':');
+    payload.hour=parseInt(sp[0])||9; payload.minute=parseInt(sp[1])||0;
+    if(ftype==='每周') payload.byday=document.getElementById('aWday').value;
+    if(ftype==='每月') payload.bymonthday=parseInt(document.getElementById('aMday').value)||1;
+  }
+  const r=await fetch('/api/add_automation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const j=await r.json();
+  if(!j.ok){toast('新建失败：'+(j.error||''),true);return;}
+  closeEditor(); await load(); toast('已新建定时任务（备份于 '+j.path+'.bak）');
+}
+function closeEditor(){document.getElementById('overlay').style.display='none';editCtx=null;}
+async function onSave(){
+  if(!editCtx)return;
+  if(editCtx.add)return saveAdd();
+  if(editCtx.addAuto)return saveAddAutomation();
+  if(editCtx.multi)return saveMulti();
+  return saveEditor();
+}
+async function saveEditor(){
+  const val=document.querySelector('#mBody .mctrl').value;
+  const r=await fetch('/api/update',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({section:activeKey,id:editCtx.id,field:editCtx.field,value:val})});
+  const j=await r.json();
+  if(!j.ok){toast('保存失败：'+(j.error||''),true);return;}
+  closeEditor(); await load(); toast('已保存至 '+j.path);
+}
+async function saveMulti(){
+  const values={};
+  document.querySelectorAll('#mBody .mctrl').forEach(c=>{values[c.dataset.key]=c.value;});
+  const r=await fetch('/api/update_multi',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({section:activeKey,id:editCtx.id,values})});
+  const j=await r.json();
+  if(!j.ok){toast('保存失败：'+(j.error||''),true);return;}
+  closeEditor(); await load(); toast('已保存至 '+j.path);
+}
+async function saveAdd(){
+  const type=document.getElementById('mType').value;
+  const content=document.getElementById('mContent').value.trim();
+  if(!content){toast('内容不能为空',true);return;}
+  const r=await fetch('/api/add',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({type,content})});
+  const j=await r.json();
+  if(!j.ok){toast('新增失败：'+(j.error||''),true);return;}
+  closeEditor(); await load(); toast('已新增至 '+j.path);
+}
+async function delItem(hid){
+  const name=(DATA[activeKey].find(it=>it.id===hid)||{})['名称']||(DATA[activeKey].find(it=>it.id===hid)||{})['主题']||'该条';
+  if(!confirm('确定删除「'+name+'」？将从配置中移除（已备份 .bak）。'))return;
+  const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({section:activeKey,id:hid})});
+  const j=await r.json();
+  if(!j.ok){toast('删除失败：'+(j.error||''),true);return;}
+  await load(); toast('已删除（备份于 '+j.path+'.bak）');
+}
+function onSearch(){query=document.getElementById('search').value.trim();render();}
+function toast(msg,err){
+  const t=document.getElementById('toast');
+  if(err){t.innerHTML='<span style="color:#ff9b95">'+msg+'</span>';}
+  else{t.innerHTML=msg.replace(/(C:[^<\s]*\.(\w+)?)/g,'<span class="fp">$1</span>');}
+  t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),2800);
+}
+window.addEventListener('resize',syncTheadTop);
+load();
+</script>
+</body>
+</html>
